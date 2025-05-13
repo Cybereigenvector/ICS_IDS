@@ -1631,6 +1631,9 @@ def intrusion_detection():
             return_str += f"""<div class="notification" style="background-color:#4CAF50; color:white; padding:10px; margin-bottom:15px; border-radius:5px;">{message}</div>"""
             
         return_str += """
+                        <!-- Include the external tab script -->
+                        <script src="/static/tabs.js"></script>
+                        
                         <div class="tab-container">
                             <button class="tab-button" onclick="openTab('alerts')">Alerts</button>
                             <button class="tab-button" onclick="openTab('datasource')">Datasource</button>
