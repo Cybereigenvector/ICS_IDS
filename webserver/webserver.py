@@ -1591,10 +1591,18 @@ def intrusion_detection():
                 else:
                     message = "Please select at least one interface"
             elif 'stop_capture' in flask.request.form:
-                success, message = packet_capture.stop_capture()
+                # If specific interfaces were checked, stop only those; otherwise stop all
+                selected_interfaces = flask.request.form.getlist('interfaces')
+                if selected_interfaces:
+                    success, message = packet_capture.stop_capture(selected_interfaces)
+                else:
+                    success, message = packet_capture.stop_capture()
         
         # Get capture status
         is_capturing, status_info = packet_capture.get_capture_status()
+        
+        # Get list of active interfaces
+        active_interfaces = packet_capture.get_active_interfaces()
         
         return_str = pages.w3_style + pages.intrusion_detection_head + draw_top_div()
         return_str += """
@@ -1655,9 +1663,13 @@ def intrusion_detection():
         
         # Add network interfaces as checkboxes
         for interface in network_interfaces:
+            checked = ""
+            if interface in active_interfaces:
+                checked = "checked"
+                
             return_str += f"""
                                     <div style="margin-bottom:10px;">
-                                        <input type="checkbox" id="{interface}" name="interfaces" value="{interface}">
+                                        <input type="checkbox" id="{interface}" name="interfaces" value="{interface}" {checked}>
                                         <label for="{interface}" style="display:inline-block; margin-left:10px; width:auto;">{interface}</label>
                                     </div>
             """

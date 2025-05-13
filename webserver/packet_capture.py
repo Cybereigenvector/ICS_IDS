@@ -48,14 +48,27 @@ def start_capture(interfaces):
     if not ensure_capture_dir():
         return False, "Error: Failed to create capture directory"
     
-    # Stop any existing captures
-    stop_capture()
+    # Don't stop existing captures, only start new ones for interfaces that aren't already capturing
+    active_interfaces = get_active_interfaces()
+    interfaces_to_start = [iface for iface in interfaces if iface not in active_interfaces]
     
-    # Start a new capture
+    if not interfaces_to_start:
+        return True, "All requested interfaces are already being captured"
+    
+    # Start a new capture for each new interface
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     pids = []
     
-    for interface in interfaces:
+    # Read existing PIDs if there are any
+    if os.path.exists(CAPTURE_PID_FILE):
+        try:
+            with open(CAPTURE_PID_FILE, 'r') as f:
+                existing_pids = f.read().strip().split('\n')
+                pids.extend([pid for pid in existing_pids if pid])
+        except:
+            pass
+    
+    for interface in interfaces_to_start:
         # Create a unique filename for this interface
         filename = f"{CAPTURE_DIR}/capture_{interface}_{timestamp}.pcap"
         
@@ -89,13 +102,16 @@ def start_capture(interfaces):
         with open(CAPTURE_PID_FILE, 'w') as f:
             f.write('\n'.join(pids))
         
-        return True, f"Packet capture started on interfaces: {', '.join(interfaces)}"
+        return True, f"Packet capture started on interfaces: {', '.join(interfaces_to_start)}"
     else:
         return False, "Failed to start any captures"
 
-def stop_capture():
+def stop_capture(interfaces=None):
     """
-    Stop all running packet captures
+    Stop packet captures
+    
+    Args:
+        interfaces (list, optional): List of interfaces to stop capturing. If None, stop all captures.
     
     Returns:
         tuple: (success (bool), message (str))
@@ -107,6 +123,29 @@ def stop_capture():
         with open(CAPTURE_PID_FILE, 'r') as f:
             pids = f.read().strip().split('\n')
         
+        # If stopping all interfaces
+        if interfaces is None:
+            for pid in pids:
+                if pid:
+                    try:
+                        os.kill(int(pid), signal.SIGTERM)
+                    except ProcessLookupError:
+                        # Process already gone
+                        pass
+                    except Exception as e:
+                        print(f"Error stopping process {pid}: {e}")
+            
+            # Remove PID file
+            os.remove(CAPTURE_PID_FILE)
+            return True, "All packet captures stopped"
+        
+        # If stopping specific interfaces, we need to identify which PIDs to kill
+        # This is challenging since we don't directly track which PID is for which interface
+        # As a workaround, we'll just stop all captures and restart the ones we want to keep
+        active_interfaces = get_active_interfaces()
+        interfaces_to_keep = [iface for iface in active_interfaces if iface not in interfaces]
+        
+        # Stop all captures first
         for pid in pids:
             if pid:
                 try:
@@ -119,7 +158,16 @@ def stop_capture():
         
         # Remove PID file
         os.remove(CAPTURE_PID_FILE)
-        return True, "Packet capture stopped"
+        
+        # Restart captures for interfaces to keep
+        if interfaces_to_keep:
+            success, msg = start_capture(interfaces_to_keep)
+            if success:
+                return True, f"Stopped capture on interfaces: {', '.join(interfaces)}"
+            else:
+                return False, f"Stopped all captures but failed to restart: {msg}"
+        
+        return True, f"Stopped capture on interfaces: {', '.join(interfaces)}"
     
     except Exception as e:
         return False, f"Error stopping capture: {str(e)}"
@@ -207,3 +255,54 @@ def format_size(size_bytes):
         if size_bytes < 1024 or unit == 'GB':
             return f"{size_bytes:.2f} {unit}"
         size_bytes /= 1024 
+
+def get_active_interfaces():
+    """
+    Get list of interfaces with active captures
+    
+    Returns:
+        list: List of interface names with active captures
+    """
+    if not os.path.exists(CAPTURE_PID_FILE):
+        return []
+    
+    # Check capture filenames to determine which interfaces are active
+    active_interfaces = []
+    capture_files = get_capture_files()
+    
+    # Get active process PIDs
+    active_pids = []
+    try:
+        with open(CAPTURE_PID_FILE, 'r') as f:
+            pids = f.read().strip().split('\n')
+            for pid in pids:
+                if pid and os.path.exists(f"/proc/{pid}"):
+                    active_pids.append(pid)
+    except:
+        return []
+    
+    # If no active processes, return empty list
+    if not active_pids:
+        return []
+        
+    # Find currently active interfaces from the most recent capture files
+    if capture_files:
+        # Group by interface name
+        interfaces = set()
+        for file in capture_files:
+            interfaces.add(file['interface'])
+        
+        # Check if each interface is active
+        for interface in interfaces:
+            # Find the most recent file for this interface
+            newest_file = None
+            for file in capture_files:
+                if file['interface'] == interface:
+                    if newest_file is None or file['mtime'] > newest_file['mtime']:
+                        newest_file = file
+            
+            # If we found a file and it's recent (within the last minute), consider it active
+            if newest_file and (time.time() - newest_file['mtime'] < 60):
+                active_interfaces.append(interface)
+    
+    return active_interfaces 
