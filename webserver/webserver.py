@@ -1632,17 +1632,17 @@ def intrusion_detection():
             
         return_str += """
                         <div class="tab-container">
-                            <button class="tab-button active" onclick="openTab('alerts')">Alerts</button>
+                            <button class="tab-button" onclick="openTab('alerts')">Alerts</button>
                             <button class="tab-button" onclick="openTab('datasource')">Datasource</button>
                             <button class="tab-button" onclick="openTab('settings')">Settings</button>
                             <button class="tab-button" onclick="openTab('log')">Log</button>
                         </div>
                         
-                        <div id="alerts" class="tab-content active">
+                        <div id="alerts" class="tab-content" style="display:none;">
                             <p>No active alerts found in the system.</p>
                         </div>
                         
-                        <div id="datasource" class="tab-content">
+                        <div id="datasource" class="tab-content" style="display:none;">
                             <h3>Network Capture Configuration</h3>
                             <p>Select the network interfaces to capture packets from:</p>
                             
@@ -1744,7 +1744,7 @@ def intrusion_detection():
                             </div>
                         </div>
                         
-                        <div id="settings" class="tab-content">
+                        <div id="settings" class="tab-content" style="display:none;">
                             <form class="form-inline" action="/intrusion_detection" method="post">
                                 <label for="sensitivity">Detection Sensitivity:</label>
                                 <select id="sensitivity" name="sensitivity" style="width:200px;height:30px;font-size: 16px;font-family: 'Roboto', sans-serif;">
@@ -1756,7 +1756,7 @@ def intrusion_detection():
                             </form>
                         </div>
                         
-                        <div id="log" class="tab-content">
+                        <div id="log" class="tab-content" style="display:none;">
                             <div class="detection-logs">
                                 [2025-05-13 16:45:02] System started monitoring<br>
                                 [2025-05-13 16:45:10] Baseline established<br>
@@ -1764,37 +1764,42 @@ def intrusion_detection():
                             </div>
                         </div>
                     </div>
-                    
-                    <script>
-                    function openTab(tabName) {
-                        var i, tabcontent, tabbuttons;
-                        
-                        // Hide all tab content
-                        tabcontent = document.getElementsByClassName("tab-content");
-                        for (i = 0; i < tabcontent.length; i++) {
-                            tabcontent[i].classList.remove("active");
-                        }
-                        
-                        // Remove active class from all tab buttons
-                        tabbuttons = document.getElementsByClassName("tab-button");
-                        for (i = 0; i < tabbuttons.length; i++) {
-                            tabbuttons[i].classList.remove("active");
-                        }
-                        
-                        // Show current tab and add active class to the button
-                        document.getElementById(tabName).classList.add("active");
-                        document.querySelector("[onclick=\"openTab('" + tabName + "')\"]").classList.add("active");
-                    }
-                    
-                    // Initialize by showing the alerts tab
-                    document.addEventListener('DOMContentLoaded', function() {
-                        openTab('alerts');
-                    });
-                    </script>
-                    
-                    </div>
                 </div>
-            </div>"""
+            </div>
+        
+        <script>
+        // Tab functions for Intrusion Detection page
+        function openTab(tabName) {
+            // Get all tab content elements
+            var tabContents = document.getElementsByClassName("tab-content");
+            for (var i = 0; i < tabContents.length; i++) {
+                tabContents[i].style.display = "none";
+            }
+            
+            // Get all tab button elements
+            var tabButtons = document.getElementsByClassName("tab-button");
+            for (var i = 0; i < tabButtons.length; i++) {
+                tabButtons[i].className = tabButtons[i].className.replace(" active", "");
+            }
+            
+            // Show the clicked tab content
+            document.getElementById(tabName).style.display = "block";
+            
+            // Add active class to the button that opened the tab
+            var activeButton = document.querySelector("button[onclick=\"openTab('" + tabName + "')\"]");
+            if (activeButton) {
+                activeButton.className += " active";
+            }
+        }
+        
+        // Set initial tab on page load
+        document.addEventListener("DOMContentLoaded", function() {
+            // Make the default tab (Alerts) visible first
+            document.getElementById("alerts").style.display = "block";
+            document.querySelector("button[onclick=\"openTab('alerts')\"]").className += " active";
+        });
+        </script>
+    """
         return return_str
 
 @app.route('/monitor-update', methods=['GET', 'POST'])
