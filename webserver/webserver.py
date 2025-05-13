@@ -1560,6 +1560,42 @@ def intrusion_detection():
         return flask.redirect(flask.url_for('login'))
     else:
         if (openplc_runtime.status() == "Compiling"): return draw_compiling_page()
+        
+        # Import the packet capture module
+        import packet_capture
+        
+        # Get network interfaces
+        import subprocess
+        network_interfaces = []
+        try:
+            # Try to get network interfaces using ip command
+            result = subprocess.run(['ip', 'a'], capture_output=True, text=True)
+            for line in result.stdout.split('\n'):
+                if line.strip().startswith(tuple(str(i) + ':' for i in range(10))):
+                    interface = line.split(':')[1].strip()
+                    # Skip loopback interface
+                    if interface != 'lo':
+                        network_interfaces.append(interface)
+        except:
+            # Fallback to common interface names
+            network_interfaces = ['eth0', 'wlan0']
+        
+        # Handle form submission for packet capture
+        message = ""
+        if flask.request.method == 'POST':
+            if 'start_capture' in flask.request.form:
+                selected_interfaces = flask.request.form.getlist('interfaces')
+                if selected_interfaces:
+                    success, msg = packet_capture.start_capture(selected_interfaces)
+                    message = msg
+                else:
+                    message = "Please select at least one interface"
+            elif 'stop_capture' in flask.request.form:
+                success, message = packet_capture.stop_capture()
+        
+        # Get capture status
+        is_capturing, status_info = packet_capture.get_capture_status()
+        
         return_str = pages.w3_style + pages.intrusion_detection_head + draw_top_div()
         return_str += """
             <div class='main'>
@@ -1588,15 +1624,124 @@ def intrusion_detection():
                     <div class="detection-card">
                         <h3>System Status <span class="status-indicator status-normal"></span></h3>
                         <p>The intrusion detection system is actively monitoring the PLC for potential security threats.</p>
-                        
+                        """
+        
+        # Add notification message if present
+        if message:
+            return_str += f"""<div class="notification" style="background-color:#4CAF50; color:white; padding:10px; margin-bottom:15px; border-radius:5px;">{message}</div>"""
+            
+        return_str += """
                         <div class="tab-container">
-                            <button class="tab-button active" onclick="openTab(event, 'alerts')">Alerts</button>
-                            <button class="tab-button" onclick="openTab(event, 'settings')">Settings</button>
-                            <button class="tab-button" onclick="openTab(event, 'log')">Log</button>
+                            <button class="tab-button" onclick="openTab('alerts')">Alerts</button>
+                            <button class="tab-button" onclick="openTab('datasource')">Datasource</button>
+                            <button class="tab-button" onclick="openTab('settings')">Settings</button>
+                            <button class="tab-button" onclick="openTab('log')">Log</button>
                         </div>
                         
-                        <div id="alerts" class="tab-content active">
+                        <div id="alerts" class="tab-content">
                             <p>No active alerts found in the system.</p>
+                        </div>
+                        
+                        <div id="datasource" class="tab-content">
+                            <h3>Network Capture Configuration</h3>
+                            <p>Select the network interfaces to capture packets from:</p>
+                            
+                            <form action="/intrusion_detection" method="post">
+                                <div style="margin-bottom:20px;">
+                        """
+        
+        # Add network interfaces as checkboxes
+        for interface in network_interfaces:
+            return_str += f"""
+                                    <div style="margin-bottom:10px;">
+                                        <input type="checkbox" id="{interface}" name="interfaces" value="{interface}">
+                                        <label for="{interface}" style="display:inline-block; margin-left:10px; width:auto;">{interface}</label>
+                                    </div>
+            """
+            
+        return_str += """
+                                </div>
+                                <div>
+                                    <button type="submit" name="start_capture" value="start" class="button" style="background-color:#4CAF50; width:auto; padding:10px 20px; margin-right:15px;">Start Capture</button>
+                                    <button type="submit" name="stop_capture" value="stop" class="button" style="background-color:#F44336; width:auto; padding:10px 20px;">Stop Capture</button>
+                                </div>
+                            </form>
+                            
+                            <div style="margin-top:30px;">
+                                <h4>Capture Status</h4>
+                                <div class="detection-logs" style="height:150px;">
+                                    <div id="capture-status">
+                        """
+        
+        # Add capture status information
+        if is_capturing:
+            status_color = "color: #4CAF50; font-weight: bold;"  # Green for active
+            return_str += f"""<span style="{status_color}">ACTIVE CAPTURE</span><br>"""
+        else:
+            status_color = "color: #F44336; font-weight: bold;"  # Red for inactive
+            return_str += f"""<span style="{status_color}">NO ACTIVE CAPTURE</span><br>"""
+        
+        # Add detailed status info
+        status_lines = status_info.split('\n')
+        for line in status_lines:
+            return_str += f"{line}<br>"
+        
+        # Add information about tcpdump
+        if not packet_capture.is_tcpdump_installed():
+            return_str += """<br><span style="color: #F44336;">WARNING: tcpdump is not installed. Install it with: sudo apt-get install tcpdump</span>"""
+        
+        # Get capture files if any
+        capture_files = packet_capture.get_capture_files()
+        if capture_files:
+            return_str += """<br><h5 style="margin-top:15px;">Captured Files:</h5>"""
+            for idx, file in enumerate(capture_files[:5]):  # Show only the 5 most recent
+                return_str += f"""<div>{idx+1}. {file['interface']} ({file['mtime_pretty']}): {file['size_pretty']}</div>"""
+            if len(capture_files) > 5:
+                return_str += f"""<div>... and {len(capture_files) - 5} more files</div>"""
+        
+        return_str += """
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Available PCAP Files Table -->
+                            <div style="margin-top:30px;">
+                                <h4>Available PCAP Files</h4>
+                                <div style="margin-top:15px; overflow-x:auto;">
+                                    <table>
+                                        <tr>
+                                            <th>Interface</th>
+                                            <th>Capture Time</th>
+                                            <th>Size</th>
+                                            <th>Action</th>
+                                        </tr>
+                        """
+        
+        # Add rows for capture files
+        if capture_files:
+            for file in capture_files:
+                return_str += f"""
+                                        <tr>
+                                            <td>{file['interface']}</td>
+                                            <td>{file['mtime_pretty']}</td>
+                                            <td>{file['size_pretty']}</td>
+                                            <td><a href="/download_pcap/{file['filename']}" class="button" style="background-color:#0066FC; width:auto; padding:5px 10px; text-decoration:none; font-size:14px;">Download</a></td>
+                                        </tr>
+                """
+        else:
+            return_str += """
+                                        <tr>
+                                            <td colspan="4" style="text-align:center;">No capture files available</td>
+                                        </tr>
+                """
+        
+        return_str += """
+                                    </table>
+                                </div>
+                                <div style="margin-top:15px;">
+                                    <p><b>Note:</b> PCAP files can be analyzed using tools like Wireshark or tcpdump.</p>
+                                </div>
+                            </div>
                         </div>
                         
                         <div id="settings" class="tab-content">
@@ -1621,7 +1766,7 @@ def intrusion_detection():
                     </div>
                     
                     <script>
-                    function openTab(evt, tabName) {
+                    function openTab(tabName) {
                         var i, tabcontent, tabbuttons;
                         
                         // Hide all tab content
@@ -1638,15 +1783,20 @@ def intrusion_detection():
                         
                         // Show current tab and add active class to the button
                         document.getElementById(tabName).style.display = "block";
-                        evt.currentTarget.className += " active";
+                        document.querySelector("[onclick=\"openTab('" + tabName + "')\"]").className += " active";
                     }
+                    
+                    // Initialize by showing the alerts tab
+                    document.addEventListener('DOMContentLoaded', function() {
+                        openTab('alerts');
+                    });
                     </script>
                     
                     </div>
                 </div>
             </div>"""
         return return_str
-        
+
 @app.route('/monitor-update', methods=['GET', 'POST'])
 def monitor_update():
     if (flask_login.current_user.is_authenticated == False):
@@ -2603,3 +2753,29 @@ if __name__ == '__main__':
             print("error connecting to the database" + str(e))
     else:
         print("error connecting to the database")
+
+@app.route('/download_pcap/<filename>', methods=['GET'])
+def download_pcap(filename):
+    """Download a PCAP file"""
+    if (flask_login.current_user.is_authenticated == False):
+        return flask.redirect(flask.url_for('login'))
+    else:
+        # Sanitize the filename to prevent directory traversal
+        import os
+        import re
+        filename = re.sub(r'[^a-zA-Z0-9_.-]', '', filename)
+        
+        # Make sure the file exists and is in the packet_captures directory
+        capture_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'packet_captures')
+        file_path = os.path.join(capture_dir, filename)
+        
+        if not os.path.exists(file_path) or not os.path.isfile(file_path):
+            return "File not found", 404
+        
+        # Serve the file for download
+        return flask.send_from_directory(
+            directory=capture_dir,
+            path=filename,
+            as_attachment=True,
+            mimetype='application/vnd.tcpdump.pcap'
+        )

@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import os
+import subprocess
+import datetime
+import signal
+import fcntl
+import time
+
+# Directory to store captured pcap files
+CAPTURE_DIR = 'packet_captures'
+# File to track running capture processes
+CAPTURE_PID_FILE = 'packet_capture.pid'
+# Path to tcpdump binary
+TCPDUMP_PATH = '/usr/sbin/tcpdump'
+
+def ensure_capture_dir():
+    """Ensure the packet capture directory exists"""
+    if not os.path.exists(CAPTURE_DIR):
+        try:
+            os.makedirs(CAPTURE_DIR)
+            return True
+        except Exception as e:
+            print(f"Error creating capture directory: {e}")
+            return False
+    return True
+
+def is_tcpdump_installed():
+    """Check if tcpdump is installed"""
+    return os.path.exists(TCPDUMP_PATH) or subprocess.run(['which', 'tcpdump'], capture_output=True).returncode == 0
+
+def start_capture(interfaces):
+    """
+    Start packet capture on specified interfaces
+    
+    Args:
+        interfaces (list): List of network interfaces to capture packets from
+        
+    Returns:
+        tuple: (success (bool), message (str))
+    """
+    # Check if tcpdump is installed
+    if not is_tcpdump_installed():
+        return False, "Error: tcpdump is not installed. Please install it first: sudo apt-get install tcpdump"
+    
+    # Ensure capture directory exists
+    if not ensure_capture_dir():
+        return False, "Error: Failed to create capture directory"
+    
+    # Stop any existing captures
+    stop_capture()
+    
+    # Start a new capture
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    pids = []
+    
+    for interface in interfaces:
+        # Create a unique filename for this interface
+        filename = f"{CAPTURE_DIR}/capture_{interface}_{timestamp}.pcap"
+        
+        try:
+            # Launch tcpdump as non-root (safer) with basic filtering
+            # -i: interface
+            # -w: write to file
+            # -n: don't resolve hostnames
+            # -s 0: capture entire packet
+            # -Z: drop privileges after opening device
+            cmd = [
+                'tcpdump', '-i', interface, '-w', filename, 
+                '-n', '-s', '0', 'not port 22'  # Exclude SSH traffic
+            ]
+            
+            # Start tcpdump process
+            process = subprocess.Popen(
+                cmd, 
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True  # Start in a new session so it's not killed when webserver process ends
+            )
+            
+            pids.append(str(process.pid))
+            
+        except Exception as e:
+            return False, f"Error starting capture on {interface}: {str(e)}"
+    
+    # Save PIDs to file
+    if pids:
+        with open(CAPTURE_PID_FILE, 'w') as f:
+            f.write('\n'.join(pids))
+        
+        return True, f"Packet capture started on interfaces: {', '.join(interfaces)}"
+    else:
+        return False, "Failed to start any captures"
+
+def stop_capture():
+    """
+    Stop all running packet captures
+    
+    Returns:
+        tuple: (success (bool), message (str))
+    """
+    if not os.path.exists(CAPTURE_PID_FILE):
+        return True, "No captures running"
+    
+    try:
+        with open(CAPTURE_PID_FILE, 'r') as f:
+            pids = f.read().strip().split('\n')
+        
+        for pid in pids:
+            if pid:
+                try:
+                    os.kill(int(pid), signal.SIGTERM)
+                except ProcessLookupError:
+                    # Process already gone
+                    pass
+                except Exception as e:
+                    print(f"Error stopping process {pid}: {e}")
+        
+        # Remove PID file
+        os.remove(CAPTURE_PID_FILE)
+        return True, "Packet capture stopped"
+    
+    except Exception as e:
+        return False, f"Error stopping capture: {str(e)}"
+
+def get_capture_status():
+    """
+    Get the status of packet captures
+    
+    Returns:
+        tuple: (is_running (bool), status_info (str))
+    """
+    if not os.path.exists(CAPTURE_PID_FILE):
+        return False, "No captures running"
+    
+    try:
+        with open(CAPTURE_PID_FILE, 'r') as f:
+            pids = f.read().strip().split('\n')
+        
+        active_pids = []
+        for pid in pids:
+            if pid and os.path.exists(f"/proc/{pid}"):
+                active_pids.append(pid)
+        
+        if active_pids:
+            # Get capture file sizes
+            capture_info = []
+            for file in os.listdir(CAPTURE_DIR):
+                if file.startswith("capture_") and file.endswith(".pcap"):
+                    file_path = os.path.join(CAPTURE_DIR, file)
+                    size_mb = os.path.getsize(file_path) / (1024 * 1024)
+                    interface = file.split('_')[1]
+                    timestamp = file.split('_')[2] + "_" + file.split('_')[3].split('.')[0]
+                    capture_info.append(f"Capture on {interface}: {size_mb:.2f} MB (started at {timestamp})")
+            
+            return True, "Capture running. PIDs: " + ", ".join(active_pids) + "\n" + "\n".join(capture_info)
+        else:
+            # No active processes, clean up PID file
+            os.remove(CAPTURE_PID_FILE)
+            return False, "No captures running"
+    
+    except Exception as e:
+        return False, f"Error checking capture status: {str(e)}"
+
+def get_capture_files():
+    """
+    Get a list of capture files
+    
+    Returns:
+        list: List of dictionaries with capture file information
+    """
+    if not os.path.exists(CAPTURE_DIR):
+        return []
+    
+    capture_files = []
+    for file in os.listdir(CAPTURE_DIR):
+        if file.startswith("capture_") and file.endswith(".pcap"):
+            file_path = os.path.join(CAPTURE_DIR, file)
+            size_bytes = os.path.getsize(file_path)
+            mtime = os.path.getmtime(file_path)
+            
+            # Extract interface and timestamp from filename
+            parts = file.split('_')
+            if len(parts) >= 4:
+                interface = parts[1]
+                timestamp_str = parts[2] + "_" + parts[3].split('.')[0]
+                
+                capture_files.append({
+                    'filename': file,
+                    'path': file_path,
+                    'interface': interface,
+                    'timestamp': timestamp_str,
+                    'size_bytes': size_bytes,
+                    'size_pretty': format_size(size_bytes),
+                    'mtime': mtime,
+                    'mtime_pretty': datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+                })
+    
+    # Sort by modification time, newest first
+    capture_files.sort(key=lambda x: x['mtime'], reverse=True)
+    return capture_files
+
+def format_size(size_bytes):
+    """Format bytes to human-readable size"""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size_bytes < 1024 or unit == 'GB':
+            return f"{size_bytes:.2f} {unit}"
+        size_bytes /= 1024 
