@@ -1632,13 +1632,13 @@ def intrusion_detection():
             
         return_str += """
                         <div class="tab-container">
-                            <button class="tab-button" onclick="openTab('alerts')">Alerts</button>
+                            <button class="tab-button active" onclick="openTab('alerts')">Alerts</button>
                             <button class="tab-button" onclick="openTab('datasource')">Datasource</button>
                             <button class="tab-button" onclick="openTab('settings')">Settings</button>
                             <button class="tab-button" onclick="openTab('log')">Log</button>
                         </div>
                         
-                        <div id="alerts" class="tab-content">
+                        <div id="alerts" class="tab-content active">
                             <p>No active alerts found in the system.</p>
                         </div>
                         
@@ -1772,18 +1772,18 @@ def intrusion_detection():
                         // Hide all tab content
                         tabcontent = document.getElementsByClassName("tab-content");
                         for (i = 0; i < tabcontent.length; i++) {
-                            tabcontent[i].style.display = "none";
+                            tabcontent[i].classList.remove("active");
                         }
                         
                         // Remove active class from all tab buttons
                         tabbuttons = document.getElementsByClassName("tab-button");
                         for (i = 0; i < tabbuttons.length; i++) {
-                            tabbuttons[i].className = tabbuttons[i].className.replace(" active", "");
+                            tabbuttons[i].classList.remove("active");
                         }
                         
                         // Show current tab and add active class to the button
-                        document.getElementById(tabName).style.display = "block";
-                        document.querySelector("[onclick=\"openTab('" + tabName + "')\"]").className += " active";
+                        document.getElementById(tabName).classList.add("active");
+                        document.querySelector("[onclick=\"openTab('" + tabName + "')\"]").classList.add("active");
                     }
                     
                     // Initialize by showing the alerts tab
@@ -2051,6 +2051,8 @@ def hardware():
             
             subprocess.call(['./scripts/change_hardware_layer.sh', hardware_layer])
             return "<head><meta http-equiv=\"refresh\" content=\"0; URL='compile-program?file=" + current_program + "'\" /></head>"
+        
+        return return_str
         
         return return_str
 
