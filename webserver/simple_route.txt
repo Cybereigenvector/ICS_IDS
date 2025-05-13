@@ -1,0 +1,12 @@
+
+@app.route(\"/intrusion_detection\", methods=[\"GET\", \"POST\"])
+def intrusion_detection():
+    if (flask_login.current_user.is_authenticated == False):
+        return flask.redirect(flask.url_for(\"login\"))
+    else:
+        if (openplc_runtime.status() == \"Compiling\"): return draw_compiling_page()
+        return_str = pages.w3_style + pages.intrusion_detection_head + draw_top_div()
+        return_str += draw_status()
+        return_str += pages.intrusion_detection_tail
+        return return_str
+

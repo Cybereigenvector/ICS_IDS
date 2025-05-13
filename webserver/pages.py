@@ -2207,4 +2207,235 @@ edit_devices_script = """
             var aorstart = document.getElementById("aor_start");
             var aorsize = document.getElementById("aor_size");
             var aowstart = document.getElementById("aow_start");
-            var aowsize = document.getElementById("aow_size");"""
+            var aowsize = document.getElementById("aow_size");
+        }
+        
+    </script>
+</html>"""
+
+intrusion_detection_head = """
+/* OpenPLC Style */
+        .top {
+            position:absolute;
+            left:0; right:0; top:0;
+            height: 50px;
+            background-color: #000000;
+            position: fixed;
+            overflow: hidden;
+            z-index: 10
+        }
+        
+        .main {
+            position: absolute;
+            left:0px; top:50px; right:0; bottom:0;
+        }
+        
+        .user {
+            position:absolute;
+            left:75%; right:0; top:0;
+            height: 50px;
+            position: fixed;
+            overflow: hidden;
+            z-index: 11;
+            text-align:right;
+        }
+        
+        .button {
+            background-color: #0066FC;
+            border: 1px solid #1F1F1F;
+            border-radius: 4px;
+            color: white;
+            padding: 15px 32px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            font-family: "Roboto", sans-serif;
+        }
+        
+        .button:hover {
+            background-color: #00337e;
+        }
+        
+        table, h1, h2, h3, p {
+            font-family: "Roboto", sans-serif;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        
+        td, th {
+            border: 1px solid #cccccc;
+            text-align: left;
+            padding: 8px;
+        }
+        
+        tr:nth-child(even) {
+            background-color: #eeeeee;
+        }
+        
+        label {
+            font-family: arial, sans-serif;
+        }
+        
+        .form-inline 
+        {  
+            display: flex;
+            flex-flow: row wrap;
+            align-items: center;
+        }
+
+        .form-inline label 
+        {
+            margin: 5px 10px 5px 0;
+            width: 130px;
+        }
+
+        .form-inline input 
+        {
+            vertical-align: middle;
+            margin: 5px 10px 5px 0;
+            padding: 10px;
+            width: calc(100% - 250px);
+            background-color: #fff;
+            border: 1px solid #ddd;
+        }
+
+        .form-inline button 
+        {
+            padding: 10px 20px;
+            background-color: #0066FC;
+            width: 100px;
+            border: 1px solid #1F1F1F;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-family: "Roboto", sans-serif;
+        }
+
+        .form-inline button:hover 
+        {
+            background-color: #00337e;
+        }
+
+        .detection-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+        }
+        
+        .detection-card h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+        
+        .status-normal {
+            background-color: #4CAF50;
+        }
+        
+        .status-warning {
+            background-color: #FFC107;
+        }
+        
+        .status-alert {
+            background-color: #F44336;
+        }
+        
+        .detection-logs {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #fff;
+            font-family: monospace;
+            margin-top: 20px;
+        }
+        
+        .tab-container {
+            margin-top: 20px;
+        }
+        
+        .tab-button {
+            background-color: #f1f1f1;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        
+        .tab-button.active {
+            background-color: #fff;
+            border-bottom: 1px solid #fff;
+        }
+        
+        .tab-content {
+            display: none;
+            border: 1px solid #ccc;
+            padding: 20px;
+            margin-top: -1px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 800px) 
+        {
+            .form-inline input 
+            {
+                margin: 10px 0;
+            }
+
+            .form-inline 
+            {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+        </style>
+        <body>"""
+
+intrusion_detection_tail = """
+                </div>
+            </div>
+        </div>
+    </body>
+    
+    <script>
+        function openTab(tabName) {
+            var i, tabContent, tabButtons;
+            
+            // Hide all tab content
+            tabContent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabContent.length; i++) {
+                tabContent[i].classList.remove("active");
+            }
+            
+            // Remove "active" class from all tab buttons
+            tabButtons = document.getElementsByClassName("tab-button");
+            for (i = 0; i < tabButtons.length; i++) {
+                tabButtons[i].classList.remove("active");
+            }
+            
+            // Show the specific tab content and add "active" class to the button
+            document.getElementById(tabName).classList.add("active");
+            document.querySelector(`[onclick="openTab('${tabName}')"]`).classList.add("active");
+        }
+        
+        // Initialize by showing the first tab
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelector('.tab-button').click();
+        });
+    </script>
+</html>"""
