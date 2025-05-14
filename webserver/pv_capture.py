@@ -171,9 +171,6 @@ def start_capture(sample_rate=500):
     if active_capture:
         return False, "Data capture is already running"
     
-    # Check if PLC is running 
-    plc_running = is_plc_running()
-    
     # Set up capture parameters
     capture_rate = sample_rate
     
@@ -188,10 +185,7 @@ def start_capture(sample_rate=500):
     capture_thread.daemon = True
     capture_thread.start()
     
-    if not plc_running:
-        return True, f"Process data capture started with sample rate {sample_rate}ms. WARNING: PLC is not running - system metrics will be captured, but PLC variables will not be available."
-    else:
-        return True, f"Process data capture started with sample rate {sample_rate}ms"
+    return True, f"Process data capture started with sample rate {sample_rate}ms"
 
 def stop_capture():
     """Stop the currently running PV capture session"""
