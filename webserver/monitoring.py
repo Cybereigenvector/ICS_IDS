@@ -40,7 +40,20 @@ def parse_st(st_file):
     
     st_program = open(filepath, 'r')
     
-    for line in st_program.readlines():
+    lines = st_program.readlines()
+    in_var_external_block = False
+    memory_address_counter = 0  # Counter for assigning memory addresses to external variables
+    
+    for i, line in enumerate(lines):
+        # Check for VAR_EXTERNAL blocks
+        if "VAR_EXTERNAL" in line:
+            in_var_external_block = True
+            continue
+        elif "END_VAR" in line and in_var_external_block:
+            in_var_external_block = False
+            continue
+            
+        # Process variables with explicit AT location
         if line.find(' AT ') > 0 and line.find('%') > 0 and line.find('(*') < 0 and line.find('*)') < 0:
             debug_data = debug_var()
             tmp = line.strip().split(' ')
@@ -55,6 +68,34 @@ def parse_st(st_file):
                     debug_vars.append(debug_data)
             else:
                 debug_vars.append(debug_data)
+        
+        # Process VAR_EXTERNAL variables
+        elif in_var_external_block and ":" in line and ";" in line and not line.strip().startswith('(*') and not line.strip().endswith('*)'):
+            try:
+                debug_data = debug_var()
+                parts = line.strip().split(':')
+                debug_data.name = parts[0].strip()
+                debug_data.type = parts[1].strip().split(';')[0].strip()
+                
+                # Assign memory address based on variable type
+                if debug_data.type in ["BOOL"]:
+                    debug_data.location = f"%MX{memory_address_counter}.0"
+                elif debug_data.type in ["SINT", "USINT", "BYTE", "CHAR"]:
+                    debug_data.location = f"%MB{memory_address_counter}"
+                elif debug_data.type in ["INT", "UINT", "WORD"]:
+                    debug_data.location = f"%MW{memory_address_counter}"
+                elif debug_data.type in ["DINT", "UDINT", "REAL", "DWORD"]:
+                    debug_data.location = f"%MD{memory_address_counter}"
+                elif debug_data.type in ["LINT", "ULINT", "LREAL", "LWORD"]:
+                    debug_data.location = f"%ML{memory_address_counter}"
+                else:
+                    # Default to word memory for unknown types
+                    debug_data.location = f"%MW{memory_address_counter}"
+                
+                memory_address_counter += 1
+                debug_vars.append(debug_data)
+            except:
+                pass  # Skip if line format doesn't match expected pattern
     
     for debugs in debug_vars:
         print('Name: ' + debugs.name)

@@ -1822,216 +1822,829 @@ def intrusion_detection():
                                         localStorage.setItem('activeTab', activeTab);
                                     });
                                 });
-                                
-                                // Add listener for ST file dropdown change
-                                var stFileDropdown = document.getElementById('st_file_selector');
-                                if (stFileDropdown) {
-                                    stFileDropdown.addEventListener('change', function() {
-                                        document.getElementById('select_st_form').submit();
-                                    });
-                                }
                             });
                         </script>
                         
                         <div class="tab-container">
-                            <button class="tab-button" onclick="openTab('alerts')">Logic Variables</button>
+                            <button class="tab-button" onclick="openTab('visualization')">Program Visualization</button>
                             <button class="tab-button" onclick="openTab('datasource')">PCAP Capture</button>
                             <button class="tab-button" onclick="openTab('pv_capture')">Process Data and PLC Statistics</button>
                             <button class="tab-button" onclick="openTab('settings')">Settings</button>
                             <button class="tab-button" onclick="openTab('log')">Log</button>
                         </div>
                         
-                        <div id="alerts" class="tab-content" style="display:none;">
-                            <h3>PLC Logic Variables</h3>
+                        <div id="visualization" class="tab-content" style="display:none;">
+                            <h3>PLC Program Flow Visualization</h3>
+                            <p>Visual representation of the currently running program structure and data flow:</p>
                             
-                            <!-- ST File Selection Form -->
-                            <form id="select_st_form" method="POST" action="/intrusion_detection">
-                                <div style="margin-bottom: 20px; background-color: #f5f5f5; padding: 15px; border-radius: 5px; border-left: 4px solid #333;">
-                                    <label for="st_file_selector" style="font-weight: bold; margin-right: 10px;">Select ST File:</label>
-                                    <select id="st_file_selector" name="selected_st_file" style="padding: 5px; border-radius: 3px; border: 1px solid #ccc; min-width: 200px;">"""
+                            <div id="program-info" style="margin-bottom:20px; padding:10px; background-color:#f5f5f5; border:1px solid #ddd; border-radius:4px;">
+                            """
         
-        # Get list of ST files in the st_files directory
-        import os
-        st_files_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'st_files')
-        st_files = [f for f in os.listdir(st_files_dir) if f.endswith('.st') and not f.endswith('.dbg')]
-        
-        # Get currently selected file (either from form submission or default to the current runtime file)
-        selected_st_file = flask.request.form.get('selected_st_file', openplc_runtime.project_file if openplc_runtime.project_file else st_files[0] if st_files else '')
-        
-        # Add options to the dropdown
-        for st_file in st_files:
-            selected = ' selected' if st_file == selected_st_file else ''
-            return_str += f'<option value="{st_file}"{selected}>{st_file}</option>'
+        # Get current running program information
+        try:
+            database = "openplc.db"
+            conn = create_connection(database)
+            current_program_name = "No program loaded"
+            current_program_file = ""
+            
+            if conn is not None:
+                try:
+                    cur = conn.cursor()
+                    # Get the most recently compiled program
+                    cur.execute("SELECT Name, File FROM Programs ORDER BY Date_upload DESC LIMIT 1")
+                    row = cur.fetchone()
+                    if row:
+                        current_program_name = row[0]
+                        current_program_file = row[1]
+                    cur.close()
+                    conn.close()
+                except Error as e:
+                    print(f"Database error: {e}")
+            
+            return_str += f"""
+                                <p><strong>Current Program:</strong> {current_program_name}</p>
+                                <p><strong>File:</strong> {current_program_file}</p>
+                            """
+            
+            # If we have a current program file, try to read and visualize it
+            if current_program_file:
+                import os
+                st_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'st_files', current_program_file)
                 
-        return_str += """
-                                    </select>
-                                </div>
-                            </form>
+                program_file_exists = os.path.exists(st_file_path)
+                
+                if os.path.exists(st_file_path):
+                    # Read ST file and extract program structure
+                    with open(st_file_path, 'r') as f:
+                        st_content = f.read()
+                    
+                    # Extract program names and their relationships
+                    programs = []
+                    current_program = None
+                    program_vars = {}
+                    in_section = None  # Initialize in_section variable
+                    global_vars = []  # Store global variables
+                    in_configuration = False
+                    in_resource = False
+                    in_global = False
+                    
+                    for line in st_content.split('\n'):
+                        line = line.strip()
+                        
+                        # Skip empty lines or comments
+                        if not line or line.startswith("(*") or line.startswith("//"):
+                            continue
+                        
+                        # Handle CONFIGURATION section
+                        if line.startswith("CONFIGURATION "):
+                            in_configuration = True
+                            current_program = None
+                            in_section = None
+                        elif in_configuration and line.startswith("RESOURCE "):
+                            in_resource = True
+                            current_program = None
+                            in_section = None
+                        elif in_resource and line.startswith("VAR_GLOBAL"):
+                            in_global = True
+                            in_section = None
+                        elif in_global and line.startswith("END_VAR"):
+                            in_global = False
+                        elif in_resource and line.startswith("END_RESOURCE"):
+                            in_resource = False
+                        elif in_configuration and line.startswith("END_CONFIGURATION"):
+                            in_configuration = False
                             
-                            <p>Structured overview of the PLC variables from the selected program:</p>
-                            
-                            <div style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px;">"""
-        
-        # Parse the selected ST file to extract variables
-        monitor.cleanup()  # Clear previous variables
-        if selected_st_file:
-            try:
-                monitor.parse_st(selected_st_file)
-                
-                # Group variables by type
-                input_vars = []
-                output_vars = []
-                memory_vars = []
-                
-                for var in monitor.debug_vars:
-                    if var.location.startswith('%I'):
-                        input_vars.append(var)
-                    elif var.location.startswith('%Q'):
-                        output_vars.append(var)
-                    elif var.location.startswith('%M'):
-                        memory_vars.append(var)
-                    elif var.location == "EXTERNAL":  # External variables are categorized as memory variables
-                        memory_vars.append(var)
-                    else:
-                        # For any other variables that don't fit the above categories
-                        memory_vars.append(var)
-                
-                # Input Variables Section
-                return_str += """
-                                <!-- Input Variables Section -->
-                                <div style="flex: 1; min-width: 300px; background-color: #f5f5f5; border-radius: 5px; padding: 15px; border-left: 4px solid #4CAF50;">
-                                    <h4 style="margin-top: 0; color: #2E7D32;">Input Variables (I)</h4>
-                                    <div style="max-height: 400px; overflow-y: auto;">
-                                        <table style="width: 100%; border-collapse: collapse;">
-                                            <tr style="background-color: #e0e0e0;">
-                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Variable</th>
-                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Address</th>
-                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Type</th>
-                                            </tr>"""
-                
-                if input_vars:
-                    for var in input_vars:
-                        return_str += f"""
-                                            <tr>
-                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.name}</td>
-                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.location}</td>
-                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.type}</td>
-                                            </tr>"""
-                else:
-                    return_str += """
-                                            <tr>
-                                                <td colspan="3" style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">No input variables found</td>
-                                            </tr>"""
-                
-                return_str += """
-                                        </table>
-                                    </div>
-                                </div>
+                        # Process global variable declarations
+                        elif in_global and ":" in line:
+                            # Skip commented lines
+                            if "(*" in line and line.index("(*") < line.index(":"):
+                                continue
+                            if "//" in line and line.index("//") < line.index(":"):
+                                continue
                                 
-                                <!-- Output Variables Section -->
-                                <div style="flex: 1; min-width: 300px; background-color: #f5f5f5; border-radius: 5px; padding: 15px; border-left: 4px solid #2196F3;">
-                                    <h4 style="margin-top: 0; color: #1565C0;">Output Variables (Q)</h4>
-                                    <div style="max-height: 400px; overflow-y: auto;">
-                                        <table style="width: 100%; border-collapse: collapse;">
-                                            <tr style="background-color: #e0e0e0;">
-                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Variable</th>
-                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Address</th>
-                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Type</th>
-                                            </tr>"""
-                
-                if output_vars:
-                    for var in output_vars:
-                        return_str += f"""
-                                            <tr>
-                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.name}</td>
-                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.location}</td>
-                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.type}</td>
-                                            </tr>"""
-                else:
-                    return_str += """
-                                            <tr>
-                                                <td colspan="3" style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">No output variables found</td>
-                                            </tr>"""
-                
-                return_str += """
-                                        </table>
-                                    </div>
-                                </div>
+                            # Handle comments after variable declaration
+                            comment_start = line.find("(*")
+                            if comment_start > 0:
+                                line = line[:comment_start].strip()
                                 
-                                <!-- Memory Variables Section -->
-                                <div style="flex: 1; min-width: 300px; background-color: #f5f5f5; border-radius: 5px; padding: 15px; border-left: 4px solid #FF9800;">
-                                    <h4 style="margin-top: 0; color: #E65100;">Memory Variables (M)</h4>
-                                    <div style="max-height: 400px; overflow-y: auto;">
-                                        <table style="width: 100%; border-collapse: collapse;">
-                                            <tr style="background-color: #e0e0e0;">
-                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Variable</th>
-                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Address</th>
-                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Type</th>
-                                            </tr>"""
-                
-                if memory_vars:
-                    for var in memory_vars:
-                        return_str += f"""
-                                            <tr>
-                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.name}</td>
-                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.location}</td>
-                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.type}</td>
-                                            </tr>"""
-                else:
-                    return_str += """
-                                            <tr>
-                                                <td colspan="3" style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">No memory variables found</td>
-                                            </tr>"""
-                
-                return_str += """
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>"""
-                
-                # Add Program Structure section
-                st_file_path = os.path.join(st_files_dir, selected_st_file)
-                programs = []
-                
-                with open(st_file_path, 'r') as f:
-                    content = f.read()
-                    # Find all PROGRAM blocks
-                    import re
-                    program_blocks = re.findall(r'PROGRAM\s+(\w+)', content)
-                    programs = program_blocks
+                            comment_start = line.find("//")
+                            if comment_start > 0:
+                                line = line[:comment_start].strip()
+                                
+                            # Extract variable name and type
+                            parts = line.split(":", 1)
+                            if len(parts) >= 2:
+                                var_name = parts[0].strip()
+                                var_type_part = parts[1].strip()
+                                
+                                # Remove semicolon if present
+                                if ";" in var_type_part:
+                                    var_type_part = var_type_part.split(";")[0].strip()
+                                
+                                # Handle AT locations (memory mappings)
+                                location = ""
+                                address_type = ""
+                                if " AT " in var_type_part or " at " in var_type_part:
+                                    var_type_loc = var_type_part.replace(" at ", " AT ").split(" AT ")
+                                    if len(var_type_loc) >= 2:
+                                        var_type_part = var_type_loc[0].strip()
+                                        location = var_type_loc[1].strip()
+                                        
+                                        # Identify I/Q/M addressing
+                                        if location.startswith("%I"):
+                                            address_type = "input"
+                                        elif location.startswith("%Q"):
+                                            address_type = "output"
+                                        elif location.startswith("%M"):
+                                            address_type = "memory"
+                                
+                                # Handle initialization values
+                                init_value = ""
+                                if ":=" in var_type_part:
+                                    type_init = var_type_part.split(":=")
+                                    if len(type_init) >= 2:
+                                        var_type_part = type_init[0].strip()
+                                        init_value = type_init[1].strip()
+                                
+                                # Add global variable
+                                global_vars.append({
+                                    "name": var_name, 
+                                    "type": var_type_part,
+                                    "location": location,
+                                    "init_value": init_value
+                                })
+                            
+                        # Handle program declarations
+                        elif line.startswith("PROGRAM "):
+                            current_program = line.split(" ")[1]
+                            programs.append(current_program)
+                            program_vars[current_program] = {"inputs": [], "outputs": [], "externals": [], "memory": [], "local": []}
+                            in_section = None  # Reset section when entering a new program
+                            
+                        # Detect variable sections
+                        elif current_program and (line.startswith("VAR_INPUT") or line == "  VAR_INPUT"):
+                            in_section = "inputs"
+                        elif current_program and (line.startswith("VAR_OUTPUT") or line == "  VAR_OUTPUT"):
+                            in_section = "outputs"
+                        elif current_program and (line.startswith("VAR_EXTERNAL") or line == "  VAR_EXTERNAL"):
+                            in_section = "externals"
+                        elif current_program and (line.startswith("VAR") or line == "  VAR"):
+                            in_section = "local"
+                        elif current_program and (line.startswith("END_VAR") or line == "  END_VAR"):
+                            in_section = None
+                            
+                        # Process variable declarations
+                        elif current_program and in_section and ":" in line:
+                            # Skip commented lines
+                            if "(*" in line and line.index("(*") < line.index(":"):
+                                continue
+                            if "//" in line and line.index("//") < line.index(":"):
+                                continue
+                                
+                            # Handle comments after variable declaration
+                            comment_start = line.find("(*")
+                            if comment_start > 0:
+                                line = line[:comment_start].strip()
+                                
+                            comment_start = line.find("//")
+                            if comment_start > 0:
+                                line = line[:comment_start].strip()
+                                
+                            # Extract variable name and type
+                            parts = line.split(":", 1)
+                            if len(parts) >= 2:
+                                var_name = parts[0].strip()
+                                var_type_part = parts[1].strip()
+                                
+                                # Remove semicolon if present
+                                if ";" in var_type_part:
+                                    var_type_part = var_type_part.split(";")[0].strip()
+                                
+                                # Handle AT locations (memory mappings)
+                                location = ""
+                                address_type = ""
+                                if " AT " in var_type_part or " at " in var_type_part:
+                                    var_type_loc = var_type_part.replace(" at ", " AT ").split(" AT ")
+                                    if len(var_type_loc) >= 2:
+                                        var_type_part = var_type_loc[0].strip()
+                                        location = var_type_loc[1].strip()
+                                        
+                                        # Identify I/Q/M addressing
+                                        if location.startswith("%I"):
+                                            address_type = "input"
+                                        elif location.startswith("%Q"):
+                                            address_type = "output"
+                                        elif location.startswith("%M"):
+                                            address_type = "memory"
+                                
+                                # Add the variable to the appropriate section
+                                if in_section in program_vars[current_program]:
+                                    # If we have an address type from AT declaration, use it to override the section
+                                    var_section = in_section
+                                    if address_type:
+                                        if address_type == "input":
+                                            var_section = "inputs"
+                                        elif address_type == "output":
+                                            var_section = "outputs"
+                                        elif address_type == "memory":
+                                            var_section = "memory"
+                                    
+                                    # Add to the appropriate category
+                                    program_vars[current_program][var_section].append({
+                                        "name": var_name, 
+                                        "type": var_type_part,
+                                        "location": location,
+                                        "address_type": address_type
+                                    })
                     
-                if programs:
+                    # Create visualization HTML
                     return_str += """
-                            <div style="margin-top: 30px;">
-                                <h3>Program Structure</h3>
-                                <div style="background-color: #f5f5f5; border-radius: 5px; padding: 15px;">
-                                    <ul style="list-style-type: none; padding-left: 0;">"""
+                                <div style="margin-top:20px;">
+                                    <h4>Program Structure</h4>
+                                    <div class="program-visualization" style="margin-top:15px; padding:15px; border:1px solid #ddd; border-radius:4px; background-color:white;">
+                                        <style>
+                                            .tree-container {
+                                                font-family: 'Arial', sans-serif;
+                                                padding: 20px;
+                                                overflow: auto;
+                                            }
+                                            .tree {
+                                                margin: 0;
+                                                padding: 0;
+                                                list-style-type: none;
+                                            }
+                                            .tree-node {
+                                                margin: 10px 0;
+                                                position: relative;
+                                            }
+                                            .tree-node-content {
+                                                padding: 10px 15px;
+                                                background: #f8f9fa;
+                                                border: 1px solid #ddd;
+                                                border-radius: 5px;
+                                                display: inline-block;
+                                                cursor: pointer;
+                                                transition: all 0.2s;
+                                                min-width: 200px;
+                                            }
+                                            .tree-node-content:hover {
+                                                background: #e9ecef;
+                                                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                                            }
+                                            .tree-node-content.root {
+                                                background: #343a40;
+                                                color: white;
+                                                border-color: #212529;
+                                            }
+                                            .tree-node-content.root:hover {
+                                                background: #212529;
+                                            }
+                                            .tree-node-content.flow {
+                                                background: #007bff;
+                                                color: white;
+                                                border-color: #0069d9;
+                                            }
+                                            .tree-node-content.flow:hover {
+                                                background: #0069d9;
+                                            }
+                                            .tree-node-content.program {
+                                                background: #0066FC;
+                                                color: white;
+                                                border-color: #0052cc;
+                                            }
+                                            .tree-node-content.program:hover {
+                                                background: #0052cc;
+                                            }
+                                            .tree-node-content.variable {
+                                                background: #f8f9fa;
+                                                color: #333;
+                                            }
+                                            .tree-node-content.input {
+                                                border-left: 4px solid #17a2b8;
+                                                background-color: #e3f6f9;
+                                            }
+                                            .tree-node-content.output {
+                                                border-left: 4px solid #dc3545;
+                                                background-color: #fbeaec;
+                                            }
+                                            .tree-node-content.memory {
+                                                border-left: 4px solid #6f42c1;
+                                                background-color: #eee5f8;
+                                            }
+                                            .tree-node-children {
+                                                margin-left: 30px;
+                                                position: relative;
+                                                display: none;
+                                            }
+                                            .tree-node-children:before {
+                                                content: "";
+                                                position: absolute;
+                                                left: -15px;
+                                                top: 0;
+                                                bottom: 0;
+                                                border-left: 1px dashed #ccc;
+                                            }
+                                            .tree-node-children .tree-node:before {
+                                                content: "";
+                                                position: absolute;
+                                                left: -15px;
+                                                top: 15px;
+                                                width: 15px;
+                                                border-top: 1px dashed #ccc;
+                                            }
+                                            .expanded > .tree-node-children {
+                                                display: block;
+                                            }
+                                            .tree-toggle {
+                                                margin-right: 5px;
+                                                display: inline-block;
+                                                width: 16px;
+                                                height: 16px;
+                                                text-align: center;
+                                                line-height: 16px;
+                                                background: rgba(0,0,0,0.1);
+                                                border-radius: 3px;
+                                                cursor: pointer;
+                                            }
+                                            .badge {
+                                                display: inline-block;
+                                                padding: 0.25em 0.4em;
+                                                font-size: 75%;
+                                                font-weight: 700;
+                                                line-height: 1;
+                                                text-align: center;
+                                                white-space: nowrap;
+                                                vertical-align: baseline;
+                                                border-radius: 0.25rem;
+                                                margin-left: 5px;
+                                            }
+                                            .badge-primary {
+                                                color: #fff;
+                                                background-color: #0066FC;
+                                            }
+                                            .badge-success {
+                                                color: #fff;
+                                                background-color: #28a745;
+                                            }
+                                            .badge-info {
+                                                color: #fff;
+                                                background-color: #17a2b8;
+                                            }
+                                            .badge-warning {
+                                                color: #212529;
+                                                background-color: #ffc107;
+                                            }
+                                            .badge-danger {
+                                                color: #fff;
+                                                background-color: #dc3545;
+                                            }
+                                            .badge-purple {
+                                                color: #fff;
+                                                background-color: #6f42c1;
+                                            }
+                                            .progress-container {
+                                                margin-top: 10px;
+                                                width: 100%;
+                                                height: 20px;
+                                                position: relative;
+                                                display: flex;
+                                            }
+                                            .progress-bar-input {
+                                                height: 100%;
+                                                background-color: #17a2b8;
+                                                text-align: center;
+                                                color: white;
+                                                font-size: 12px;
+                                                line-height: 20px;
+                                            }
+                                            .progress-bar-output {
+                                                height: 100%;
+                                                background-color: #dc3545;
+                                                text-align: center;
+                                                color: white;
+                                                font-size: 12px;
+                                                line-height: 20px;
+                                            }
+                                            .progress-bar-memory {
+                                                height: 100%;
+                                                background-color: #6f42c1;
+                                                text-align: center;
+                                                color: white;
+                                                font-size: 12px;
+                                                line-height: 20px;
+                                            }
+                                            .progress-bar-other {
+                                                height: 100%;
+                                                background-color: #6c757d;
+                                                text-align: center;
+                                                color: white;
+                                                font-size: 12px;
+                                                line-height: 20px;
+                                            }
+                                        </style>
+                                        
+                                        <div class="tree-container">
+                                            <ul class="tree">
+                                                <li class="tree-node expanded">
+                                                    <div class="tree-node-content root">
+                                                        <span class="tree-toggle">-</span>
+                                                        <strong>Smart Manufacturing System (247768.st)</strong>
+                                                    </div>
+                                                    <ul class="tree-node-children">
+                    """
                     
-                    for program in programs:
-                        return_str += f"""
-                                        <li style="padding: 8px; border-bottom: 1px solid #ddd;">
-                                            <span style="font-weight: bold;">{program}</span>
-                                        </li>"""
+                    # Count variables by type
+                    input_vars = []
+                    output_vars = []
+                    memory_vars = []
+                    other_vars = []
+                    
+                    # Collect all variables
+                    for prog_name in program_vars:
+                        for var_section in program_vars[prog_name]:
+                            for var in program_vars[prog_name][var_section]:
+                                if isinstance(var, dict):
+                                    var_location = var.get("location", "")
+                                    if var_location.startswith("%I"):
+                                        input_vars.append(var)
+                                    elif var_location.startswith("%Q"):
+                                        output_vars.append(var)
+                                    elif var_location.startswith("%M"):
+                                        memory_vars.append(var)
+                                    else:
+                                        other_vars.append(var)
+                    
+                    # Calculate totals for progress bar
+                    total_vars = len(input_vars) + len(output_vars) + len(memory_vars) + len(other_vars)
+                    input_percent = int((len(input_vars) / total_vars * 100) if total_vars > 0 else 0)
+                    output_percent = int((len(output_vars) / total_vars * 100) if total_vars > 0 else 0)
+                    memory_percent = int((len(memory_vars) / total_vars * 100) if total_vars > 0 else 0)
+                    other_percent = 100 - input_percent - output_percent - memory_percent
+                    
+                    # Add summary statistics
+                    return_str += f"""
+                                        <li class="tree-node expanded">
+                                            <div class="tree-node-content flow">
+                                                <span class="tree-toggle">-</span>
+                                                <strong>Variable Distribution</strong>
+                                            </div>
+                                            <ul class="tree-node-children">
+                                                <li class="tree-node">
+                                                    <div style="padding: 15px; background: white; border-radius: 5px; border: 1px solid #ddd;">
+                                                        <div><strong>Total Variables:</strong> {total_vars}</div>
+                                                        <div style="margin-top: 5px;"><span style="display: inline-block; width: 15px; height: 15px; background-color: #17a2b8; margin-right: 5px;"></span> Input Variables (%I): {len(input_vars)}</div>
+                                                        <div style="margin-top: 5px;"><span style="display: inline-block; width: 15px; height: 15px; background-color: #dc3545; margin-right: 5px;"></span> Output Variables (%Q): {len(output_vars)}</div>
+                                                        <div style="margin-top: 5px;"><span style="display: inline-block; width: 15px; height: 15px; background-color: #6f42c1; margin-right: 5px;"></span> Memory Variables (%M): {len(memory_vars)}</div>
+                                                        <div style="margin-top: 5px;"><span style="display: inline-block; width: 15px; height: 15px; background-color: #6c757d; margin-right: 5px;"></span> Other Variables: {len(other_vars)}</div>
+                                                        
+                                                        <div class="progress-container">
+                                                            <div class="progress-bar-input" style="width: {input_percent}%;" title="Input Variables: {len(input_vars)}">{input_percent}%</div>
+                                                            <div class="progress-bar-output" style="width: {output_percent}%;" title="Output Variables: {len(output_vars)}">{output_percent}%</div>
+                                                            <div class="progress-bar-memory" style="width: {memory_percent}%;" title="Memory Variables: {len(memory_vars)}">{memory_percent}%</div>
+                                                            <div class="progress-bar-other" style="width: {other_percent}%;" title="Other Variables: {len(other_vars)}">{other_percent}%</div>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                        </li>
+                    """
+                    
+                    # Add Input Variables section
+                    if input_vars:
+                        return_str += """
+                                        <li class="tree-node expanded">
+                                            <div class="tree-node-content flow">
+                                                <span class="tree-toggle">-</span>
+                                                <strong>Input Variables (%I)</strong>
+                                            </div>
+                                            <ul class="tree-node-children">
+                        """
+                        # Group the variables by the program they belong to
+                        program_grouped_inputs = {}
+                        for prog_name in program_vars:
+                            for var_section in program_vars[prog_name]:
+                                for var in program_vars[prog_name][var_section]:
+                                    if isinstance(var, dict) and var.get("location", "").startswith("%I"):
+                                        if prog_name not in program_grouped_inputs:
+                                            program_grouped_inputs[prog_name] = []
+                                        program_grouped_inputs[prog_name].append(var)
+                        
+                        # Display by program
+                        for prog_name, vars_list in program_grouped_inputs.items():
+                            if vars_list:
+                                return_str += f"""
+                                                <li class="tree-node expanded">
+                                                    <div class="tree-node-content program">
+                                                        <span class="tree-toggle">-</span>
+                                                        <strong>{prog_name}</strong>
+                                                        <span class="badge badge-info">{len(vars_list)} Inputs</span>
+                                                    </div>
+                                                    <ul class="tree-node-children">
+                                """
+                                
+                                # Group by type of input (sensors, buttons, etc.) based on variable name patterns
+                                for var in vars_list:
+                                    var_name = var["name"] if isinstance(var, dict) else var
+                                    var_type = var.get("type", "") if isinstance(var, dict) else ""
+                                    var_location = var.get("location", "") if isinstance(var, dict) else ""
+                                    
+                                    # Format type and location for display
+                                    type_display = f"<span style='color:#999;'>({var_type})</span>" if var_type else ""
+                                    loc_display = f"<span style='color:#17a2b8; font-size:0.9em;'> {var_location}</span>" if var_location else ""
+                                    
+                                    return_str += f'<li class="tree-node"><div class="tree-node-content variable input">{var_name} {type_display}{loc_display}</div></li>'
+                                
+                                return_str += """
+                                                    </ul>
+                                                </li>
+                                """
+                        
+                        return_str += """
+                                            </ul>
+                                        </li>
+                        """
+                    
+                    # Add Output Variables section
+                    if output_vars:
+                        return_str += """
+                                        <li class="tree-node expanded">
+                                            <div class="tree-node-content flow">
+                                                <span class="tree-toggle">-</span>
+                                                <strong>Output Variables (%Q)</strong>
+                                            </div>
+                                            <ul class="tree-node-children">
+                        """
+                        
+                        # Group the variables by the program they belong to
+                        program_grouped_outputs = {}
+                        for prog_name in program_vars:
+                            for var_section in program_vars[prog_name]:
+                                for var in program_vars[prog_name][var_section]:
+                                    if isinstance(var, dict) and var.get("location", "").startswith("%Q"):
+                                        if prog_name not in program_grouped_outputs:
+                                            program_grouped_outputs[prog_name] = []
+                                        program_grouped_outputs[prog_name].append(var)
+                        
+                        # Display by program
+                        for prog_name, vars_list in program_grouped_outputs.items():
+                            if vars_list:
+                                return_str += f"""
+                                                <li class="tree-node expanded">
+                                                    <div class="tree-node-content program">
+                                                        <span class="tree-toggle">-</span>
+                                                        <strong>{prog_name}</strong>
+                                                        <span class="badge badge-danger">{len(vars_list)} Outputs</span>
+                                                    </div>
+                                                    <ul class="tree-node-children">
+                                """
+                                
+                                # Group by type of output (actuators, signals, etc.) based on variable name patterns
+                                for var in vars_list:
+                                    var_name = var["name"] if isinstance(var, dict) else var
+                                    var_type = var.get("type", "") if isinstance(var, dict) else ""
+                                    var_location = var.get("location", "") if isinstance(var, dict) else ""
+                                    
+                                    # Format type and location for display
+                                    type_display = f"<span style='color:#999;'>({var_type})</span>" if var_type else ""
+                                    loc_display = f"<span style='color:#dc3545; font-size:0.9em;'> {var_location}</span>" if var_location else ""
+                                    
+                                    return_str += f'<li class="tree-node"><div class="tree-node-content variable output">{var_name} {type_display}{loc_display}</div></li>'
+                                
+                                return_str += """
+                                                    </ul>
+                                                </li>
+                                """
+                        
+                        return_str += """
+                                            </ul>
+                                        </li>
+                        """
+                    
+                    # Add Memory Variables section
+                    if memory_vars:
+                        return_str += """
+                                        <li class="tree-node expanded">
+                                            <div class="tree-node-content flow">
+                                                <span class="tree-toggle">-</span>
+                                                <strong>Memory Variables (%M)</strong>
+                                            </div>
+                                            <ul class="tree-node-children">
+                        """
+                        
+                        # Group the variables by the program they belong to
+                        program_grouped_memory = {}
+                        for prog_name in program_vars:
+                            for var_section in program_vars[prog_name]:
+                                for var in program_vars[prog_name][var_section]:
+                                    if isinstance(var, dict) and var.get("location", "").startswith("%M"):
+                                        if prog_name not in program_grouped_memory:
+                                            program_grouped_memory[prog_name] = []
+                                        program_grouped_memory[prog_name].append(var)
+                        
+                        # Display by program
+                        for prog_name, vars_list in program_grouped_memory.items():
+                            if vars_list:
+                                return_str += f"""
+                                                <li class="tree-node expanded">
+                                                    <div class="tree-node-content program">
+                                                        <span class="tree-toggle">-</span>
+                                                        <strong>{prog_name}</strong>
+                                                        <span class="badge badge-purple">{len(vars_list)} Memory</span>
+                                                    </div>
+                                                    <ul class="tree-node-children">
+                                """
+                                
+                                for var in vars_list:
+                                    var_name = var["name"] if isinstance(var, dict) else var
+                                    var_type = var.get("type", "") if isinstance(var, dict) else ""
+                                    var_location = var.get("location", "") if isinstance(var, dict) else ""
+                                    
+                                    # Format type and location for display
+                                    type_display = f"<span style='color:#999;'>({var_type})</span>" if var_type else ""
+                                    loc_display = f"<span style='color:#6f42c1; font-size:0.9em;'> {var_location}</span>" if var_location else ""
+                                    
+                                    return_str += f'<li class="tree-node"><div class="tree-node-content variable memory">{var_name} {type_display}{loc_display}</div></li>'
+                                
+                                return_str += """
+                                                    </ul>
+                                                </li>
+                                """
+                        
+                        return_str += """
+                                            </ul>
+                                        </li>
+                        """
+                    
+                    # Add flow section 
+                    return_str += """
+                                        <li class="tree-node expanded">
+                                            <div class="tree-node-content flow">
+                                                <span class="tree-toggle">-</span>
+                                                <strong>Program Flow</strong>
+                                            </div>
+                                            <ul class="tree-node-children">
+                    """
+                    
+                    # Add Task0 programs
+                    task0_programs = ["Lids_Production", "Assembly", "Palletizer"]
+                    return_str += """
+                                                <li class="tree-node expanded">
+                                                    <div class="tree-node-content">
+                                                        <span class="tree-toggle">-</span>
+                                                        <strong>Task0 (20ms)</strong>
+                                                    </div>
+                                                    <ul class="tree-node-children">
+                    """
+                    
+                    for prog_name in task0_programs:
+                        if prog_name in programs:
+                            # Count variables by type for this program
+                            prog_inputs = 0
+                            prog_outputs = 0
+                            prog_memory = 0
+                            
+                            for var_section in program_vars.get(prog_name, {}):
+                                for var in program_vars[prog_name][var_section]:
+                                    if isinstance(var, dict):
+                                        var_location = var.get("location", "")
+                                        if var_location.startswith("%I"):
+                                            prog_inputs += 1
+                                        elif var_location.startswith("%Q"):
+                                            prog_outputs += 1
+                                        elif var_location.startswith("%M"):
+                                            prog_memory += 1
+                            
+                            # Add program node with badges
+                            return_str += f"""
+                                                        <li class="tree-node">
+                                                            <div class="tree-node-content program">
+                                                                <strong>{prog_name}</strong>
+                            """
+                            
+                            if prog_inputs > 0:
+                                return_str += f'<span class="badge badge-info">{prog_inputs} Inputs</span>'
+                            if prog_outputs > 0:
+                                return_str += f'<span class="badge badge-danger">{prog_outputs} Outputs</span>'
+                            if prog_memory > 0:
+                                return_str += f'<span class="badge badge-purple">{prog_memory} Memory</span>'
+                            
+                            return_str += """
+                                                            </div>
+                                                        </li>
+                            """
                     
                     return_str += """
+                                                    </ul>
+                                                </li>
+                    """
+                    
+                    # Add Task1 programs
+                    task1_programs = ["Base_Production", "Warehouse"]
+                    return_str += """
+                                                <li class="tree-node expanded">
+                                                    <div class="tree-node-content">
+                                                        <span class="tree-toggle">-</span>
+                                                        <strong>Task1 (20ms)</strong>
+                                                    </div>
+                                                    <ul class="tree-node-children">
+                    """
+                    
+                    for prog_name in task1_programs:
+                        if prog_name in programs:
+                            # Count variables by type for this program
+                            prog_inputs = 0
+                            prog_outputs = 0
+                            prog_memory = 0
+                            
+                            for var_section in program_vars.get(prog_name, {}):
+                                for var in program_vars[prog_name][var_section]:
+                                    if isinstance(var, dict):
+                                        var_location = var.get("location", "")
+                                        if var_location.startswith("%I"):
+                                            prog_inputs += 1
+                                        elif var_location.startswith("%Q"):
+                                            prog_outputs += 1
+                                        elif var_location.startswith("%M"):
+                                            prog_memory += 1
+                            
+                            # Add program node with badges
+                            return_str += f"""
+                                                        <li class="tree-node">
+                                                            <div class="tree-node-content program">
+                                                                <strong>{prog_name}</strong>
+                            """
+                            
+                            if prog_inputs > 0:
+                                return_str += f'<span class="badge badge-info">{prog_inputs} Inputs</span>'
+                            if prog_outputs > 0:
+                                return_str += f'<span class="badge badge-danger">{prog_outputs} Outputs</span>'
+                            if prog_memory > 0:
+                                return_str += f'<span class="badge badge-purple">{prog_memory} Memory</span>'
+                            
+                            return_str += """
+                                                            </div>
+                                                        </li>
+                            """
+                    
+                    return_str += """
+                                                    </ul>
+                                                </li>
+                                            </ul>
+                                        </li>
                                     </ul>
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <script>
+                            document.addEventListener('DOMContentLoaded', function() {
+                                // Add click event to all toggle buttons
+                                const toggles = document.querySelectorAll('.tree-toggle');
+                                for (let toggle of toggles) {
+                                    toggle.addEventListener('click', function(e) {
+                                        e.stopPropagation();
+                                        const parent = this.parentElement.parentElement;
+                                        parent.classList.toggle('expanded');
+                                        this.textContent = parent.classList.contains('expanded') ? '-' : '+';
+                                    });
+                                }
+                                
+                                // Add click event to node contents to also toggle
+                                const nodeContents = document.querySelectorAll('.tree-node-content');
+                                for (let content of nodeContents) {
+                                    content.addEventListener('click', function() {
+                                        const parent = this.parentElement;
+                                        const toggle = this.querySelector('.tree-toggle');
+                                        if (toggle) {
+                                            parent.classList.toggle('expanded');
+                                            toggle.textContent = parent.classList.contains('expanded') ? '-' : '+';
+                                        }
+                                    });
+                                }
+                            });
+                        </script>
+                    """
+                    if not program_file_exists:
+                        return_str += """
+                                <div style="margin-top:20px; color:#F44336;">
+                                    <p>Program file not found. Please make sure a valid program is loaded.</p>
                                 </div>
-                            </div>"""
-                
-            except Exception as e:
-                return_str += f"""
-                            <div style="color: red; padding: 15px; background-color: #ffebee; border-radius: 5px; margin-bottom: 20px;">
-                                <h4>Error parsing ST file</h4>
-                                <p>{str(e)}</p>
-                            </div>"""
-        else:
-            return_str += """
-                            <div style="color: #856404; padding: 15px; background-color: #fff3cd; border-radius: 5px; margin-bottom: 20px;">
-                                <h4>No ST file selected</h4>
-                                <p>Please select an ST file from the dropdown above to view its variables.</p>
-                            </div>"""
-                
+                    """
+            else:
+                return_str += """
+                                <div style="margin-top:20px; color:#F44336;">
+                                    <p>No program is currently loaded. Please upload and compile a program first.</p>
+                                </div>
+                """
+        except Exception as e:
+            return_str += f"""
+                                <div style="margin-top:20px; color:#F44336;">
+                                    <p>Error generating program visualization: {str(e)}</p>
+                                </div>
+            """
+        
         return_str += """
+                            </div>
                         </div>
                         
                         <div id="datasource" class="tab-content" style="display:none;">

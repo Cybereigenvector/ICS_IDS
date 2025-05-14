@@ -14,6 +14,7 @@ import sys
 import ctypes
 import socket
 import mimetypes
+import shutil
 
 import flask 
 import flask_login
@@ -242,6 +243,7 @@ def draw_blank_page():
                     <div class="w3-bar-item"><img src='/static/programs-icon-64x64.png' alt='Programs' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></div>
                     <div class="w3-bar-item"><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></div>
                     <div class="w3-bar-item"><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></div>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
                     <div class="w3-bar-item"><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></div>
                     <div class="w3-bar-item"><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></div>
                     <div class="w3-bar-item"><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></div>
@@ -548,6 +550,7 @@ def dashboard():
                     <a href='programs' class='w3-bar-item w3-button'><img src='/static/programs-icon-64x64.png' alt='Programs' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
                     <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
                     <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
                     <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                     <a href='users' class='w3-bar-item w3-button'><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></a>
                     <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
@@ -597,6 +600,7 @@ def programs():
                     <a href="programs" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/programs-icon-64x64.png" alt="Programs" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Programs</p></a>
                     <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
                     <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
                     <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                     <a href='users' class='w3-bar-item w3-button'><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></a>
                     <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
@@ -677,6 +681,7 @@ def reload_program():
                     <a href="programs" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/programs-icon-64x64.png" alt="Programs" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Programs</p></a>
                     <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
                     <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
                     <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                     <a href='users' class='w3-bar-item w3-button'><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></a>
                     <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
@@ -739,6 +744,7 @@ def update_program():
                     <a href="programs" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/programs-icon-64x64.png" alt="Programs" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Programs</p></a>
                     <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
                     <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
                     <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                     <a href='users' class='w3-bar-item w3-button'><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></a>
                     <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
@@ -858,6 +864,7 @@ def upload_program():
                     <a href="programs" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/programs-icon-64x64.png" alt="Programs" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Programs</p></a>
                     <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
                     <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
                     <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                     <a href='users' class='w3-bar-item w3-button'><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></a>
                     <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
@@ -1003,6 +1010,7 @@ def modbus():
                     <a href="programs" class="w3-bar-item w3-button"><img src="/static/programs-icon-64x64.png" alt="Programs" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
                     <a href="modbus" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/modbus-icon-512x512.png" alt="Modbus" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Slave Devices</p></a>
                     <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
                     <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                     <a href='users' class='w3-bar-item w3-button'><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></a>
                     <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
@@ -1111,6 +1119,7 @@ def add_modbus_device():
                         <a href="programs" class="w3-bar-item w3-button"><img src="/static/programs-icon-64x64.png" alt="Programs" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
                         <a href="modbus" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/modbus-icon-512x512.png" alt="Modbus" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Slave Devices</p></a>
                         <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
                         <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                         <a href='users' class='w3-bar-item w3-button'><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></a>
                         <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
@@ -1231,6 +1240,7 @@ def modbus_edit_device():
                         <a href="programs" class="w3-bar-item w3-button"><img src="/static/programs-icon-64x64.png" alt="Programs" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
                         <a href="modbus" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/modbus-icon-512x512.png" alt="Modbus" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Slave Devices</p></a>
                         <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
                         <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                         <a href='users' class='w3-bar-item w3-button'><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></a>
                         <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
@@ -1428,7 +1438,8 @@ def monitoring():
                     <a href="dashboard" class="w3-bar-item w3-button"><img src="/static/home-icon-64x64.png" alt="Dashboard" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Dashboard</p></a>
                     <a href='programs' class='w3-bar-item w3-button'><img src='/static/programs-icon-64x64.png' alt='Programs' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
                     <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
-                    <a href="monitoring" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/monitoring-icon-64x64.png" alt="Monitoring" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Monitoring</p></a>                    
+                    <a href="monitoring" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/monitoring-icon-64x64.png" alt="Monitoring" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>                    
                     <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                     <a href='users' class='w3-bar-item w3-button'><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></a>
                     <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
@@ -1543,7 +1554,1008 @@ def monitoring():
 </html>"""
 
         return return_str
+
+@app.route('/intrusion_detection', methods=['GET', 'POST'])
+def intrusion_detection():
+    if (flask_login.current_user.is_authenticated == False):
+        return flask.redirect(flask.url_for('login'))
+    else:
+        if (openplc_runtime.status() == "Compiling"): return draw_compiling_page()
         
+        # Import modules with error handling
+        try:
+            import packet_capture
+        except ImportError as e:
+            error_msg = f"Error importing packet_capture module: {str(e)}"
+            print(error_msg)
+            return pages.w3_style + draw_top_div() + f"""
+                <div class='main'>
+                    <div class='w3-sidebar w3-bar-block' style='width:250px; background-color:#1F1F1F'></div>
+                    <div style="margin-left:320px; margin-right:70px">
+                        <div style="w3-container">
+                        <br>
+                        <h2>Intrusion Detection</h2>
+                        <div class="error-card" style="background-color:#ffcccc; padding:20px; border-radius:5px;">
+                            <h3>Module Error</h3>
+                            <p>{error_msg}</p>
+                            <p>Please make sure all required Python packages are installed.</p>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+            """
+            
+        try:
+            import pv_capture
+        except ImportError as e:
+            error_msg = f"Error importing pv_capture module: {str(e)}"
+            print(error_msg)
+            return pages.w3_style + draw_top_div() + f"""
+                <div class='main'>
+                    <div class='w3-sidebar w3-bar-block' style='width:250px; background-color:#1F1F1F'></div>
+                    <div style="margin-left:320px; margin-right:70px">
+                        <div style="w3-container">
+                        <br>
+                        <h2>Intrusion Detection</h2>
+                        <div class="error-card" style="background-color:#ffcccc; padding:20px; border-radius:5px;">
+                            <h3>Module Error</h3>
+                            <p>{error_msg}</p>
+                            <p>Please make sure all required Python packages are installed.</p>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+            """
+        
+        # Get network interfaces with error handling
+        try:
+            import subprocess
+            network_interfaces = []
+            try:
+                # Try to get network interfaces using ip command
+                result = subprocess.run(['ip', 'a'], capture_output=True, text=True)
+                for line in result.stdout.split('\n'):
+                    if line.strip().startswith(tuple(str(i) + ':' for i in range(10))):
+                        interface = line.split(':')[1].strip()
+                        # Skip loopback interface
+                        if interface != 'lo':
+                            network_interfaces.append(interface)
+            except:
+                # Fallback to common interface names
+                network_interfaces = ['eth0', 'wlan0']
+        except Exception as e:
+            error_msg = f"Error getting network interfaces: {str(e)}"
+            print(error_msg)
+            network_interfaces = []
+        
+        # Handle form submission for packet capture
+        message = ""
+        if flask.request.method == 'POST':
+            if 'start_capture' in flask.request.form:
+                selected_interfaces = flask.request.form.getlist('interfaces')
+                if selected_interfaces:
+                    try:
+                        success, msg = packet_capture.start_capture(selected_interfaces)
+                        message = msg
+                    except Exception as e:
+                        message = f"Error starting packet capture: {str(e)}"
+                        print(message)
+                else:
+                    message = "Please select at least one interface"
+            elif 'stop_capture' in flask.request.form:
+                # If specific interfaces were checked, stop only those; otherwise stop all
+                selected_interfaces = flask.request.form.getlist('interfaces')
+                try:
+                    if selected_interfaces:
+                        success, message = packet_capture.stop_capture(selected_interfaces)
+                    else:
+                        success, message = packet_capture.stop_capture()
+                except Exception as e:
+                    message = f"Error stopping packet capture: {str(e)}"
+                    print(message)
+            elif 'start_pv_capture' in flask.request.form:
+                sample_rate = flask.request.form.get('sample_rate', '500')
+                try:
+                    sample_rate = int(sample_rate)
+                    try:
+                        success, message = pv_capture.start_capture(sample_rate)
+                    except Exception as e:
+                        message = f"Error starting PV capture: {str(e)}"
+                        print(message)
+                except ValueError:
+                    message = "Invalid sample rate value"
+            elif 'stop_pv_capture' in flask.request.form:
+                try:
+                    success, message = pv_capture.stop_capture()
+                except Exception as e:
+                    message = f"Error stopping PV capture: {str(e)}"
+                    print(message)
+            elif 'delete_file' in flask.request.form:
+                # Handle file deletion
+                filename = flask.request.form['delete_file']
+                # Validate filename
+                import re
+                import os
+                import shutil
+                if re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+                    # Get paths for the file in both the capture and static directories
+                    source_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'packet_captures')
+                    source_file = os.path.join(source_dir, filename)
+                    
+                    static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'pcap_files')
+                    static_file = os.path.join(static_dir, filename)
+                    
+                    # Delete the files
+                    deleted = False
+                    try:
+                        if os.path.exists(source_file) and os.path.isfile(source_file):
+                            os.remove(source_file)
+                            deleted = True
+                            
+                        if os.path.exists(static_file) and os.path.isfile(static_file):
+                            os.remove(static_file)
+                            deleted = True
+                            
+                        if deleted:
+                            message = f"File '{filename}' has been deleted successfully."
+                        else:
+                            message = f"File '{filename}' not found."
+                    except Exception as e:
+                        message = f"Error deleting file '{filename}': {str(e)}"
+                else:
+                    message = "Invalid filename specified."
+            elif 'delete_pv_file' in flask.request.form:
+                # Handle PV file deletion
+                filename = flask.request.form['delete_pv_file']
+                # Validate filename
+                import re
+                import os
+                import shutil
+                if re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+                    # Get paths for the file in both the capture and static directories
+                    source_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pv_captures')
+                    source_file = os.path.join(source_dir, filename)
+                    
+                    static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'pv_files')
+                    static_file = os.path.join(static_dir, filename)
+                    
+                    # Delete the files
+                    deleted = False
+                    try:
+                        if os.path.exists(source_file) and os.path.isfile(source_file):
+                            os.remove(source_file)
+                            deleted = True
+                            
+                        if os.path.exists(static_file) and os.path.isfile(static_file):
+                            os.remove(static_file)
+                            deleted = True
+                            
+                        if deleted:
+                            message = f"PV capture file '{filename}' has been deleted successfully."
+                        else:
+                            message = f"PV capture file '{filename}' not found."
+                    except Exception as e:
+                        message = f"Error deleting PV capture file '{filename}': {str(e)}"
+                else:
+                    message = "Invalid filename specified."
+        
+        # Get capture status
+        try:
+            is_capturing, status_info = packet_capture.get_capture_status()
+        except Exception as e:
+            is_capturing = False
+            status_info = f"Error getting capture status: {str(e)}"
+            print(status_info)
+        
+        # Get list of active interfaces
+        try:
+            active_interfaces = packet_capture.get_active_interfaces()
+        except Exception as e:
+            active_interfaces = []
+            print(f"Error getting active interfaces: {str(e)}")
+        
+        # Get PV capture status
+        try:
+            is_pv_capturing, pv_status_info = pv_capture.get_capture_status()
+        except Exception as e:
+            is_pv_capturing = False
+            pv_status_info = f"Error getting PV capture status: {str(e)}"
+            print(pv_status_info)
+        
+        # Get PV capture files
+        try:
+            pv_files = pv_capture.get_capture_files()
+        except Exception as e:
+            pv_files = []
+            print(f"Error getting PV capture files: {str(e)}")
+        
+        return_str = pages.w3_style + pages.intrusion_detection_head + draw_top_div()
+        return_str += """
+            <div class='main'>
+                <div class='w3-sidebar w3-bar-block' style='width:250px; background-color:#1F1F1F'>
+                    <br>
+                    <br>
+                    <a href="dashboard" class="w3-bar-item w3-button"><img src="/static/home-icon-64x64.png" alt="Dashboard" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Dashboard</p></a>
+                    <a href='programs' class='w3-bar-item w3-button'><img src='/static/programs-icon-64x64.png' alt='Programs' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
+                    <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
+                    <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Intrusion Detection</p></a>
+                    <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
+                    <a href='users' class='w3-bar-item w3-button'><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></a>
+                    <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
+                    <a href='logout' class='w3-bar-item w3-button'><img src='/static/logout-icon-64x64.png' alt='Logout' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Logout</p></a>
+                    <br>
+                    <br>"""
+        return_str += draw_status()
+        return_str += """
+                </div>
+                <div style="margin-left:320px; margin-right:70px">
+                    <div style="w3-container">
+                    <br>
+                    <h2>Intrusion Detection</h2>
+                    
+                    <div class="detection-card">
+                        <h3>System Status <span class="status-indicator status-normal"></span></h3>
+                        <p>The intrusion detection system is actively monitoring the PLC for potential security threats.</p>
+                        """
+        
+        # Add notification message if present
+        if message:
+            return_str += f"""<div class="notification" style="background-color:#4CAF50; color:white; padding:10px; margin-bottom:15px; border-radius:5px;">{message}</div>"""
+            
+        return_str += """
+                        <!-- Include the external tab script -->
+                        <script src="/static/tabs.js"></script>
+                        
+                        <!-- Add JavaScript to handle form submissions to preserve tab state -->
+                        <script>
+                            // Add event listener to all forms in the intrusion detection page
+                            document.addEventListener("DOMContentLoaded", function() {
+                                var forms = document.querySelectorAll('.datasource-form');
+                                forms.forEach(function(form) {
+                                    form.addEventListener('submit', function() {
+                                        // Get current active tab from localStorage
+                                        var activeTab = localStorage.getItem('activeTab');
+                                        if (!activeTab) activeTab = 'datasource'; // Default to datasource tab
+                                        
+                                        // Ensure datasource tab is shown immediately after page loads
+                                        localStorage.setItem('activeTab', activeTab);
+                                    });
+                                });
+                            });
+                        </script>
+                        
+                        <div class="tab-container">
+                            <button class="tab-button" onclick="openTab('visualization')">Program Visualization</button>
+                            <button class="tab-button" onclick="openTab('datasource')">PCAP Capture</button>
+                            <button class="tab-button" onclick="openTab('pv_capture')">Process Data and PLC Statistics</button>
+                            <button class="tab-button" onclick="openTab('settings')">Settings</button>
+                            <button class="tab-button" onclick="openTab('log')">Log</button>
+                        </div>
+                        
+                        <div id="visualization" class="tab-content" style="display:none;">
+                            <h3>PLC Program Flow Visualization</h3>
+                            <p>Visual representation of the currently running program structure and data flow:</p>
+                            
+                            <div id="program-info" style="margin-bottom:20px; padding:10px; background-color:#f5f5f5; border:1px solid #ddd; border-radius:4px;">
+                            """
+        
+        # Get current running program information
+        try:
+            database = "openplc.db"
+            conn = create_connection(database)
+            current_program_name = "No program loaded"
+            current_program_file = ""
+            
+            if conn is not None:
+                try:
+                    cur = conn.cursor()
+                    # Get the most recently compiled program
+                    cur.execute("SELECT Name, File FROM Programs ORDER BY Date_upload DESC LIMIT 1")
+                    row = cur.fetchone()
+                    if row:
+                        current_program_name = row[0]
+                        current_program_file = row[1]
+                    cur.close()
+                    conn.close()
+                except Error as e:
+                    print(f"Database error: {e}")
+            
+            return_str += f"""
+                                <p><strong>Current Program:</strong> {current_program_name}</p>
+                                <p><strong>File:</strong> {current_program_file}</p>
+                            """
+            
+            # If we have a current program file, try to read and visualize it
+            if current_program_file:
+                import os
+                st_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'st_files', current_program_file)
+                
+                if os.path.exists(st_file_path):
+                    # Read ST file and extract program structure
+                    with open(st_file_path, 'r') as f:
+                        st_content = f.read()
+                    
+                    # Extract program names and their relationships
+                    programs = []
+                    current_program = None
+                    program_vars = {}
+                    in_section = None  # Initialize in_section variable
+                    global_vars = []  # Store global variables
+                    in_configuration = False
+                    in_resource = False
+                    in_global = False
+                    
+                    for line in st_content.split('\n'):
+                        line = line.strip()
+                        
+                        # Skip empty lines or comments
+                        if not line or line.startswith("(*") or line.startswith("//"):
+                            continue
+                        
+                        # Handle CONFIGURATION section
+                        if line.startswith("CONFIGURATION "):
+                            in_configuration = True
+                            current_program = None
+                            in_section = None
+                        elif in_configuration and line.startswith("RESOURCE "):
+                            in_resource = True
+                            current_program = None
+                            in_section = None
+                        elif in_resource and line.startswith("VAR_GLOBAL"):
+                            in_global = True
+                            in_section = None
+                        elif in_global and line.startswith("END_VAR"):
+                            in_global = False
+                        elif in_resource and line.startswith("END_RESOURCE"):
+                            in_resource = False
+                        elif in_configuration and line.startswith("END_CONFIGURATION"):
+                            in_configuration = False
+                            
+                        # Process global variable declarations
+                        elif in_global and ":" in line:
+                            # Skip commented lines
+                            if "(*" in line and line.index("(*") < line.index(":"):
+                                continue
+                            if "//" in line and line.index("//") < line.index(":"):
+                                continue
+                                
+                            # Handle comments after variable declaration
+                            comment_start = line.find("(*")
+                            if comment_start > 0:
+                                line = line[:comment_start].strip()
+                                
+                            comment_start = line.find("//")
+                            if comment_start > 0:
+                                line = line[:comment_start].strip()
+                                
+                            # Extract variable name and type
+                            parts = line.split(":", 1)
+                            if len(parts) >= 2:
+                                var_name = parts[0].strip()
+                                var_type_part = parts[1].strip()
+                                
+                                # Remove semicolon if present
+                                if ";" in var_type_part:
+                                    var_type_part = var_type_part.split(";")[0].strip()
+                                
+                                # Handle AT locations (memory mappings)
+                                location = ""
+                                if " AT " in var_type_part or " at " in var_type_part:
+                                    var_type_loc = var_type_part.replace(" at ", " AT ").split(" AT ")
+                                    if len(var_type_loc) >= 2:
+                                        var_type_part = var_type_loc[0].strip()
+                                        location = var_type_loc[1].strip()
+                                
+                                # Handle initialization values
+                                init_value = ""
+                                if ":=" in var_type_part:
+                                    type_init = var_type_part.split(":=")
+                                    if len(type_init) >= 2:
+                                        var_type_part = type_init[0].strip()
+                                        init_value = type_init[1].strip()
+                                
+                                # Add global variable
+                                global_vars.append({
+                                    "name": var_name,
+                                    "type": var_type_part,
+                                    "location": location,
+                                    "init_value": init_value
+                                })
+                            
+                        # Handle program declarations
+                        elif line.startswith("PROGRAM "):
+                            current_program = line.split(" ")[1]
+                            programs.append(current_program)
+                            program_vars[current_program] = {"inputs": [], "outputs": [], "externals": [], "local": []}
+                            in_section = None  # Reset section when entering a new program
+                            
+                        # Detect variable sections
+                        elif current_program and (line.startswith("VAR_INPUT") or line == "  VAR_INPUT"):
+                            in_section = "inputs"
+                        elif current_program and (line.startswith("VAR_OUTPUT") or line == "  VAR_OUTPUT"):
+                            in_section = "outputs"
+                        elif current_program and (line.startswith("VAR_EXTERNAL") or line == "  VAR_EXTERNAL"):
+                            in_section = "externals"
+                        elif current_program and (line.startswith("VAR") or line == "  VAR"):
+                            in_section = "local"
+                        elif current_program and (line.startswith("END_VAR") or line == "  END_VAR"):
+                            in_section = None
+                            
+                        # Process variable declarations
+                        elif current_program and in_section and ":" in line:
+                            # Skip commented lines
+                            if "(*" in line and line.index("(*") < line.index(":"):
+                                continue
+                            if "//" in line and line.index("//") < line.index(":"):
+                                continue
+                                
+                            # Handle comments after variable declaration
+                            comment_start = line.find("(*")
+                            if comment_start > 0:
+                                line = line[:comment_start].strip()
+                                
+                            comment_start = line.find("//")
+                            if comment_start > 0:
+                                line = line[:comment_start].strip()
+                                
+                            # Extract variable name and type
+                            parts = line.split(":", 1)
+                            if len(parts) >= 2:
+                                var_name = parts[0].strip()
+                                var_type_part = parts[1].strip()
+                                
+                                # Remove semicolon if present
+                                if ";" in var_type_part:
+                                    var_type_part = var_type_part.split(";")[0].strip()
+                                
+                                # Handle AT locations (memory mappings)
+                                location = ""
+                                if " AT " in var_type_part or " at " in var_type_part:
+                                    var_type_loc = var_type_part.replace(" at ", " AT ").split(" AT ")
+                                    if len(var_type_loc) >= 2:
+                                        var_type_part = var_type_loc[0].strip()
+                                        location = var_type_loc[1].strip()
+                                
+                                # Add the variable to the appropriate section
+                                if in_section in program_vars[current_program]:
+                                    program_vars[current_program][in_section].append({
+                                        "name": var_name, 
+                                        "type": var_type_part,
+                                        "location": location
+                                    })
+                    
+                    # Create visualization HTML
+                    return_str += """
+                                <div style="margin-top:20px;">
+                                    <h4>Program Structure</h4>
+                                    <div class="program-visualization" style="margin-top:15px; padding:15px; border:1px solid #ddd; border-radius:4px; background-color:white;">
+                                        <style>
+                                            .tree-container {
+                                                font-family: 'Arial', sans-serif;
+                                                padding: 20px;
+                                                overflow: auto;
+                                            }
+                                            .tree {
+                                                margin: 0;
+                                                padding: 0;
+                                                list-style-type: none;
+                                            }
+                                            .tree-node {
+                                                margin: 10px 0;
+                                                position: relative;
+                                            }
+                                            .tree-node-content {
+                                                padding: 10px 15px;
+                                                background: #f8f9fa;
+                                                border: 1px solid #ddd;
+                                                border-radius: 5px;
+                                                display: inline-block;
+                                                cursor: pointer;
+                                                transition: all 0.2s;
+                                                min-width: 200px;
+                                            }
+                                            .tree-node-content:hover {
+                                                background: #e9ecef;
+                                                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                                            }
+                                            .tree-node-content.program {
+                                                background: #0066FC;
+                                                color: white;
+                                                border-color: #0052cc;
+                                            }
+                                            .tree-node-content.program:hover {
+                                                background: #0052cc;
+                                            }
+                                            .tree-node-content.task {
+                                                background: #28a745;
+                                                color: white;
+                                                border-color: #218838;
+                                            }
+                                            .tree-node-content.task:hover {
+                                                background: #218838;
+                                            }
+                                            .tree-node-content.variable {
+                                                background: #f8f9fa;
+                                                color: #333;
+                                            }
+                                            .tree-node-content.input {
+                                                border-left: 4px solid #17a2b8;
+                                            }
+                                            .tree-node-content.output {
+                                                border-left: 4px solid #dc3545;
+                                            }
+                                            .tree-node-content.external {
+                                                border-left: 4px solid #ffc107;
+                                            }
+                                            .tree-node-children {
+                                                margin-left: 30px;
+                                                position: relative;
+                                                display: none;
+                                            }
+                                            .tree-node-children:before {
+                                                content: "";
+                                                position: absolute;
+                                                left: -15px;
+                                                top: 0;
+                                                bottom: 0;
+                                                border-left: 1px dashed #ccc;
+                                            }
+                                            .tree-node-children .tree-node:before {
+                                                content: "";
+                                                position: absolute;
+                                                left: -15px;
+                                                top: 15px;
+                                                width: 15px;
+                                                border-top: 1px dashed #ccc;
+                                            }
+                                            .expanded > .tree-node-children {
+                                                display: block;
+                                            }
+                                            .tree-toggle {
+                                                margin-right: 5px;
+                                                display: inline-block;
+                                                width: 16px;
+                                                height: 16px;
+                                                text-align: center;
+                                                line-height: 16px;
+                                                background: rgba(0,0,0,0.1);
+                                                border-radius: 3px;
+                                                cursor: pointer;
+                                            }
+                                            .badge {
+                                                display: inline-block;
+                                                padding: 0.25em 0.4em;
+                                                font-size: 75%;
+                                                font-weight: 700;
+                                                line-height: 1;
+                                                text-align: center;
+                                                white-space: nowrap;
+                                                vertical-align: baseline;
+                                                border-radius: 0.25rem;
+                                                margin-left: 5px;
+                                            }
+                                            .badge-primary {
+                                                color: #fff;
+                                                background-color: #0066FC;
+                                            }
+                                            .badge-success {
+                                                color: #fff;
+                                                background-color: #28a745;
+                                            }
+                                            .badge-info {
+                                                color: #fff;
+                                                background-color: #17a2b8;
+                                            }
+                                            .badge-warning {
+                                                color: #212529;
+                                                background-color: #ffc107;
+                                            }
+                                            .badge-danger {
+                                                color: #fff;
+                                                background-color: #dc3545;
+                                            }
+                                        </style>
+                                        
+                                        <div class="tree-container">
+                                            <ul class="tree">
+                                                <li class="tree-node expanded">
+                                                    <div class="tree-node-content program">
+                                                        <span class="tree-toggle">-</span>
+                                                        <strong>Smart Manufacturing System (247768.st)</strong>
+                                                    </div>
+                                                    <ul class="tree-node-children">
+                    """
+                    
+                    # Configuration section
+                    return_str += """
+                                                        <li class="tree-node expanded">
+                                                            <div class="tree-node-content">
+                                                                <span class="tree-toggle">-</span>
+                                                                <strong>Configuration: Config0</strong>
+                                                            </div>
+                                                            <ul class="tree-node-children">
+                                                                <li class="tree-node expanded">
+                                                                    <div class="tree-node-content">
+                                                                        <span class="tree-toggle">-</span>
+                                                                        <strong>Resource: Res0 (PLC)</strong>
+                                                                    </div>
+                                                                    <ul class="tree-node-children">
+                                                                        <li class="tree-node expanded">
+                                                                            <div class="tree-node-content">
+                                                                                <span class="tree-toggle">-</span>
+                                                                                <strong>Global Variables</strong>
+                                                                            </div>
+                                                                            <ul class="tree-node-children">
+                    """
+                    
+                    # Display global variables from parsing
+                    if global_vars:
+                        for var in global_vars:
+                            var_name = var["name"]
+                            var_type = var["type"]
+                            var_location = var["location"]
+                            var_init = var["init_value"]
+                            
+                            # Format type and location for display
+                            type_display = f"<span style='color:#999;'>({var_type})</span>" if var_type else ""
+                            loc_display = f"<span style='color:#0066FC; font-size:0.9em;'> {var_location}</span>" if var_location else ""
+                            init_display = f"<span style='color:#28a745; font-size:0.9em;'> := {var_init}</span>" if var_init else ""
+                            
+                            return_str += f'<li class="tree-node"><div class="tree-node-content variable">{var_name} {type_display}{loc_display}{init_display}</div></li>'
+                    else:
+                        # Fallback if no global variables were found
+                        return_str += """
+                                                                                <li class="tree-node"><div class="tree-node-content variable">FactoryIORunning</div></li>
+                                                                                <li class="tree-node"><div class="tree-node-content variable">BasesCenterBusy/LidsCenterBusy</div></li>
+                                                                                <li class="tree-node"><div class="tree-node-content variable">Production Counters</div></li>
+                                                                                <li class="tree-node"><div class="tree-node-content variable">E-Stop Controls</div></li>
+                        """
+                    
+                    return_str += """
+                                                                            </ul>
+                                                                        </li>
+                                                                        <li class="tree-node expanded">
+                                                                            <div class="tree-node-content">
+                                                                                <span class="tree-toggle">-</span>
+                                                                                <strong>Tasks</strong>
+                                                                            </div>
+                                                                            <ul class="tree-node-children">
+                                                                                <li class="tree-node expanded">
+                                                                                    <div class="tree-node-content task">
+                                                                                        <span class="tree-toggle">-</span>
+                                                                                        <strong>Task0 (20ms)</strong>
+                                                                                    </div>
+                                                                                    <ul class="tree-node-children">
+                                                                                        <li class="tree-node"><div class="tree-node-content">Lids_Production</div></li>
+                                                                                        <li class="tree-node"><div class="tree-node-content">Assembly</div></li>
+                                                                                        <li class="tree-node"><div class="tree-node-content">Palletizer</div></li>
+                                                                                    </ul>
+                                                                                </li>
+                                                                                <li class="tree-node expanded">
+                                                                                    <div class="tree-node-content task">
+                                                                                        <span class="tree-toggle">-</span>
+                                                                                        <strong>Task1 (20ms)</strong>
+                                                                                    </div>
+                                                                                    <ul class="tree-node-children">
+                                                                                        <li class="tree-node"><div class="tree-node-content">Base_Production</div></li>
+                                                                                        <li class="tree-node"><div class="tree-node-content">Warehouse</div></li>
+                                                                                    </ul>
+                                                                                </li>
+                                                                            </ul>
+                                                                        </li>
+                                                                    </ul>
+                                                                </li>
+                                                            </ul>
+                                                        </li>
+                    """
+                else:
+                    return_str += """
+                                <div style="margin-top:20px; color:#F44336;">
+                                    <p>Program file not found. Please make sure a valid program is loaded.</p>
+                                </div>
+                    """
+            else:
+                return_str += """
+                                <div style="margin-top:20px; color:#F44336;">
+                                    <p>No program is currently loaded. Please upload and compile a program first.</p>
+                                </div>
+                """
+        except Exception as e:
+            return_str += f"""
+                                <div style="margin-top:20px; color:#F44336;">
+                                    <p>Error generating program visualization: {str(e)}</p>
+                                </div>
+            """
+        
+        return_str += """
+                            </div>
+                        </div>
+                        
+                        <div id="datasource" class="tab-content" style="display:none;">
+                            <h3>Network Capture Configuration</h3>
+                            <p>Select the network interfaces to capture packets from:</p>
+                            
+                            <form action="/intrusion_detection" method="post" class="datasource-form">
+                                <div style="margin-bottom:20px;">
+                        """
+        
+        # Add network interfaces as checkboxes
+        for interface in network_interfaces:
+            checked = ""
+            if interface in active_interfaces:
+                checked = "checked"
+                
+            return_str += f"""
+                                    <div style="margin-bottom:10px;">
+                                        <input type="checkbox" id="{interface}" name="interfaces" value="{interface}" {checked}>
+                                        <label for="{interface}" style="display:inline-block; margin-left:10px; width:auto;">{interface}</label>
+                                    </div>
+            """
+            
+        return_str += """
+                                </div>
+                                <div>
+                                    <button type="submit" name="start_capture" value="start" class="button" style="background-color:#4CAF50; width:auto; padding:10px 20px; margin-right:15px;">Start Capture</button>
+                                    <button type="submit" name="stop_capture" value="stop" class="button" style="background-color:#F44336; width:auto; padding:10px 20px;">Stop Capture</button>
+                                </div>
+                            </form>
+                            
+                            <div style="margin-top:30px;">
+                                <h4>Capture Status</h4>
+                                <div class="detection-logs" style="height:150px;">
+                                    <div id="capture-status">
+                        """
+        
+        # Add capture status information
+        if is_capturing:
+            status_color = "color: #4CAF50; font-weight: bold;"  # Green for active
+            return_str += f"""<span style="{status_color}">ACTIVE CAPTURE</span><br>"""
+        else:
+            status_color = "color: #F44336; font-weight: bold;"  # Red for inactive
+            return_str += f"""<span style="{status_color}">NO ACTIVE CAPTURE</span><br>"""
+        
+        # Add detailed status info
+        status_lines = status_info.split('\n')
+        for line in status_lines:
+            return_str += f"{line}<br>"
+        
+        # Add information about tcpdump
+        if not packet_capture.is_tcpdump_installed():
+            return_str += """<br><span style="color: #F44336;">WARNING: tcpdump is not installed. Install it with: sudo apt-get install tcpdump</span>"""
+        
+        # Get capture files if any
+        capture_files = packet_capture.get_capture_files()
+        if capture_files:
+            return_str += """<br><h5 style="margin-top:15px;">Captured Files:</h5>"""
+            for idx, file in enumerate(capture_files[:5]):  # Show only the 5 most recent
+                return_str += f"""<div>{idx+1}. {file['interface']} ({file['mtime_pretty']}): {file['size_pretty']}</div>"""
+            if len(capture_files) > 5:
+                return_str += f"""<div>... and {len(capture_files) - 5} more files</div>"""
+        
+        return_str += """
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Available PCAP Files Table -->
+                            <div style="margin-top:30px;">
+                                <h4>Available PCAP Files</h4>
+                                <div style="margin-top:15px; overflow-x:auto;">
+                                    <table>
+                                        <tr>
+                                            <th>Interface</th>
+                                            <th>Capture Time</th>
+                                            <th>Size</th>
+                                            <th>Action</th>
+                                        </tr>
+                        """
+        
+        # Add rows for capture files
+        if capture_files:
+            for file in capture_files:
+                # Copy the file to the static directory for direct access
+                import shutil
+                import os
+                static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'pcap_files')
+                if not os.path.exists(static_path):
+                    os.makedirs(static_path)
+                static_file = os.path.join(static_path, file['filename'])
+                shutil.copy2(file['path'], static_file)
+                os.chmod(static_file, 0o644)  # Make it readable by the web server
+                
+                # Use a direct link to the static file
+                return_str += f"""
+                                        <tr>
+                                            <td>{file['interface']}</td>
+                                            <td>{file['mtime_pretty']}</td>
+                                            <td>{file['size_pretty']}</td>
+                                            <td>
+                                                <a href="/static/pcap_files/{file['filename']}" download="{file['filename']}" target="_blank" class="button" style="background-color:#0066FC; width:auto; padding:5px 10px; text-decoration:none; font-size:14px; margin-right:5px;">Download</a>
+                                                <form method="post" action="/intrusion_detection" style="display:inline;" class="datasource-form">
+                                                    <input type="hidden" name="delete_file" value="{file['filename']}">
+                                                    <button type="submit" class="button" style="background-color:#F44336; width:auto; padding:5px 10px; text-decoration:none; font-size:14px; border:none; cursor:pointer;">Delete</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                """
+        else:
+            return_str += """
+                                        <tr>
+                                            <td colspan="4" style="text-align:center;">No capture files available</td>
+                                        </tr>
+                """
+        
+        return_str += """
+                                    </table>
+                                </div>
+                                <div style="margin-top:15px;">
+                                    <p><b>Note:</b> PCAP files can be analyzed using tools like Wireshark or tcpdump.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="pv_capture" class="tab-content" style="display:none;">
+                            <h3>Process Data and PLC Statistics Configuration</h3>
+                            <p>Monitor and capture process variables and system statistics for intrusion detection analysis:</p>
+                            
+                            <div style="margin-bottom:20px; padding:10px; background-color:#f5f5f5; border:1px solid #ddd; border-radius:4px;">
+                                <p><strong>Captured Statistics:</strong></p>
+                                <ul style="margin-top:5px; padding-left:20px;">
+                                    <li><strong>CPU Metrics:</strong> CPU Load %, CPU Idle %</li>
+                                    <li><strong>Memory Metrics:</strong> Total RAM, Used RAM, Free RAM, Heap Fragmentation %</li>
+                                    <li><strong>Storage Metrics:</strong> Disk Total GB, Disk Used GB, Disk Free GB</li>
+                                    <li><strong>System Health:</strong> ISR Overruns, SD Writes, SD I/O Time (ms)</li>
+                                    <li><strong>PLC Variables:</strong> All PLC variables from the monitoring page</li>
+                                </ul>
+                                <p><em>Note: Capture will work even if the PLC is not running, but only system metrics will be available.</em></p>
+                            </div>
+                            
+                            <form action="/intrusion_detection" method="post" class="datasource-form">
+                                <div style="margin-bottom:20px;">
+                                    <label for="sample_rate">Sample Rate (ms):</label>
+                                    <select id="sample_rate" name="sample_rate" style="width:100px; margin-left:10px;">
+                                        <option value="10">10</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                        <option value="500" selected>500</option>
+                                        <option value="1000">1000</option>
+                                        <option value="5000">5000</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <button type="submit" name="start_pv_capture" value="start" class="button" style="background-color:#4CAF50; width:auto; padding:10px 20px; margin-right:15px;">Start Data Capture</button>
+                                    <button type="submit" name="stop_pv_capture" value="stop" class="button" style="background-color:#F44336; width:auto; padding:10px 20px;">Stop Data Capture</button>
+                                </div>
+                            </form>
+                            
+                            <div style="margin-top:30px;">
+                                <h4>Capture Status</h4>
+                                <div class="detection-logs" style="height:150px;">
+                                    <div id="pv-capture-status">"""
+        
+        # Add PV capture status information
+        if is_pv_capturing:
+            status_color = "color: #4CAF50; font-weight: bold;"  # Green for active
+            return_str += f"""<span style="{status_color}">ACTIVE DATA CAPTURE</span><br>"""
+        else:
+            status_color = "color: #F44336; font-weight: bold;"  # Red for inactive
+            return_str += f"""<span style="{status_color}">NO ACTIVE DATA CAPTURE</span><br>"""
+        
+        # Add PV status info
+        return_str += f"{pv_status_info}<br>"
+        
+        return_str += """
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Available PV Capture Files Table -->
+                            <div style="margin-top:30px;">
+                                <h4>Available Capture Files</h4>
+                                <div style="margin-top:15px; overflow-x:auto;">
+                                    <table>
+                                        <tr>
+                                            <th>Filename</th>
+                                            <th>Capture Time</th>
+                                            <th>Size</th>
+                                            <th>Action</th>
+                                        </tr>"""
+        
+        # Add rows for PV capture files
+        if pv_files:
+            for file in pv_files:
+                # Create a static file link
+                static_url = f"/static/pv_files/{file['filename']}"
+                
+                return_str += f"""
+                                        <tr>
+                                            <td>{file['filename']}</td>
+                                            <td>{file['mtime_pretty']}</td>
+                                            <td>{file['size_pretty']}</td>
+                                            <td>
+                                                <a href="{static_url}" download="{file['filename']}" target="_blank" class="button" style="background-color:#0066FC; width:auto; padding:5px 10px; text-decoration:none; font-size:14px; margin-right:5px;">Download</a>
+                                                <form method="post" action="/intrusion_detection" style="display:inline;" class="datasource-form">
+                                                    <input type="hidden" name="delete_pv_file" value="{file['filename']}">
+                                                    <button type="submit" class="button" style="background-color:#F44336; width:auto; padding:5px 10px; text-decoration:none; font-size:14px; border:none; cursor:pointer;">Delete</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                """
+        else:
+            return_str += """
+                                        <tr>
+                                            <td colspan="4" style="text-align:center;">No capture files available</td>
+                                        </tr>
+                """
+        
+        return_str += """
+                                    </table>
+                                </div>
+                                <div style="margin-top:15px;">
+                                    <p><b>Note:</b> PV capture files contain recorded changes to PLC variables over time in CSV format.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="settings" class="tab-content" style="display:none;">
+                            <form class="form-inline" action="/intrusion_detection" method="post">
+                                <label for="sensitivity">Detection Sensitivity:</label>
+                                <select id="sensitivity" name="sensitivity" style="width:200px;height:30px;font-size: 16px;font-family: 'Roboto', sans-serif;">
+                                    <option value="low">Low</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="high">High</option>
+                                </select>
+                                <button type="submit">Save</button>
+                            </form>
+                        </div>
+                        
+                        <div id="log" class="tab-content" style="display:none;">
+                            <div class="detection-logs">
+                                [2025-05-13 16:45:02] System started monitoring<br>
+                                [2025-05-13 16:45:10] Baseline established<br>
+                                [2025-05-13 16:46:32] User login: admin<br>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        
+        <script>
+        // Tab functions for Intrusion Detection page
+        function openTab(tabName) {
+            // Get all tab content elements
+            var tabContents = document.getElementsByClassName("tab-content");
+            for (var i = 0; i < tabContents.length; i++) {
+                tabContents[i].style.display = "none";
+            }
+            
+            // Get all tab button elements
+            var tabButtons = document.getElementsByClassName("tab-button");
+            for (var i = 0; i < tabButtons.length; i++) {
+                tabButtons[i].className = tabButtons[i].className.replace(" active", "");
+            }
+            
+            // Show the clicked tab content
+            document.getElementById(tabName).style.display = "block";
+            
+            // Add active class to the button that opened the tab
+            var activeButton = document.querySelector("button[onclick=\"openTab('" + tabName + "')\"]");
+            if (activeButton) {
+                activeButton.className += " active";
+            }
+        }
+        
+        // Set initial tab on page load
+        document.addEventListener("DOMContentLoaded", function() {
+            // Make the default tab (Alerts) visible first
+            document.getElementById("alerts").style.display = "block";
+            document.querySelector("button[onclick=\"openTab('alerts')\"]").className += " active";
+        });
+        </script>
+    """
+        return return_str
+
 @app.route('/monitor-update', methods=['GET', 'POST'])
 def monitor_update():
     if (flask_login.current_user.is_authenticated == False):
@@ -1620,7 +2632,8 @@ def point_info():
                     <a href="dashboard" class="w3-bar-item w3-button"><img src="/static/home-icon-64x64.png" alt="Dashboard" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Dashboard</p></a>
                     <a href='programs' class='w3-bar-item w3-button'><img src='/static/programs-icon-64x64.png' alt='Programs' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
                     <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
-                    <a href="monitoring" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/monitoring-icon-64x64.png" alt="Monitoring" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Monitoring</p></a>                    
+                    <a href="monitoring" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/monitoring-icon-64x64.png" alt="Monitoring" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>                    
                     <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                     <a href='users' class='w3-bar-item w3-button'><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></a>
                     <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
@@ -1799,6 +2812,8 @@ def hardware():
             return "<head><meta http-equiv=\"refresh\" content=\"0; URL='compile-program?file=" + current_program + "'\" /></head>"
         
         return return_str
+        
+        return return_str
 
 
 @app.route('/restore_custom_hardware')
@@ -1831,6 +2846,7 @@ def users():
                     <a href='programs' class='w3-bar-item w3-button'><img src='/static/programs-icon-64x64.png' alt='Programs' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
                     <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
                     <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
                     <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                     <a href="users" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/users-icon-64x64.png" alt="Users" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Users</p></a>
                     <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
@@ -1899,6 +2915,7 @@ def add_user():
                         <a href='programs' class='w3-bar-item w3-button'><img src='/static/programs-icon-64x64.png' alt='Programs' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
                         <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
                         <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
+                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
                         <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                         <a href="users" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/users-icon-64x64.png" alt="Users" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Users</p></a>
                         <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
@@ -1970,7 +2987,8 @@ def edit_user():
                         <a href='programs' class='w3-bar-item w3-button'><img src='/static/programs-icon-64x64.png' alt='Programs' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
                         <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
                         <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
-                        <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
+                        <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
+                    <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
                         <a href="users" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/users-icon-64x64.png" alt="Users" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Users</p></a>
                         <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
                         <a href='logout' class='w3-bar-item w3-button'><img src='/static/logout-icon-64x64.png' alt='Logout' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Logout</p></a>
@@ -2496,4 +3514,80 @@ if __name__ == '__main__':
             print("error connecting to the database" + str(e))
     else:
         print("error connecting to the database")
-@app.route('/intrusion_detection', methods=['GET', 'POST'])
+
+@app.route('/download_pcap/<filename>', methods=['GET'])
+def download_pcap(filename):
+    """Download a PCAP file by copying it to a static downloads directory"""
+    if (flask_login.current_user.is_authenticated == False):
+        return flask.redirect(flask.url_for('login'))
+    else:
+        # Sanitize the filename to prevent directory traversal
+        import os
+        import re
+        import shutil
+        
+        # Basic security check - only allow alphanumeric characters, underscores, hyphens and periods
+        if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+            return "Invalid filename", 400
+        
+        # Make sure the file exists in the packet_captures directory
+        source_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'packet_captures')
+        source_file = os.path.join(source_dir, filename)
+        
+        # Target location in the static directory for direct download access
+        target_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'downloads')
+        target_file = os.path.join(target_dir, filename)
+        
+        # Make sure the downloads directory exists
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
+        
+        # Copy the file to the static/downloads directory
+        try:
+            if os.path.exists(source_file) and os.path.isfile(source_file):
+                shutil.copy2(source_file, target_file)
+                # Return a redirect to the static URL
+                download_url = flask.url_for('static', filename=f'downloads/{filename}')
+                return flask.redirect(download_url)
+            else:
+                return "Source file not found", 404
+        except Exception as e:
+            print(f"Error preparing download file: {e}")
+            return "Error preparing download", 500
+
+@app.route('/delete_pcap/<filename>', methods=['GET'])
+def delete_pcap(filename):
+    """Delete a PCAP file"""
+    if (flask_login.current_user.is_authenticated == False):
+        return flask.redirect(flask.url_for('login'))
+    else:
+        # Sanitize the filename to prevent directory traversal
+        import os
+        import re
+        
+        # Basic security check - only allow alphanumeric characters, underscores, hyphens and periods
+        if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+            return "Invalid filename", 400
+        
+        # Get paths for the file in both the capture and static directories
+        source_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'packet_captures')
+        source_file = os.path.join(source_dir, filename)
+        
+        static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'pcap_files')
+        static_file = os.path.join(static_dir, filename)
+        
+        # Delete the files
+        deleted = False
+        try:
+            if os.path.exists(source_file) and os.path.isfile(source_file):
+                os.remove(source_file)
+                deleted = True
+                
+            if os.path.exists(static_file) and os.path.isfile(static_file):
+                os.remove(static_file)
+                deleted = True
+        except Exception as e:
+            return f"Error deleting file: {str(e)}", 500
+        
+        # Redirect back to the intrusion detection page
+        return flask.redirect(flask.url_for('intrusion_detection'))
