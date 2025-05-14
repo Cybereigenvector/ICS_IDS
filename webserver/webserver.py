@@ -1991,39 +1991,24 @@ def intrusion_detection():
                 
                 # Add Program Structure section
                 st_file_path = os.path.join(st_files_dir, selected_st_file)
-                programs = []
                 
                 with open(st_file_path, 'r') as f:
                     content = f.read()
-                    # Find all PROGRAM blocks
-                    import re
-                    program_blocks = re.findall(r'PROGRAM\s+(\w+)', content)
-                    programs = program_blocks
                     
-                if programs:
-                    return_str += """
-                            <div style="margin-top: 30px;">
-                                <h3>Program Structure</h3>
-                                <div style="background-color: #f5f5f5; border-radius: 5px; padding: 15px;">
-                                    <ul style="list-style-type: none; padding-left: 0;">"""
-                    
-                    for program in programs:
-                        return_str += f"""
-                                        <li style="padding: 8px; border-bottom: 1px solid #ddd;">
-                                            <span style="font-weight: bold;">{program}</span>
-                                        </li>"""
-                    
-                    return_str += """
-                                    </ul>
-                                </div>
-                            </div>"""
+                return_str += """
+                        <div style="margin-top: 30px;">
+                            <h3>Program Structure</h3>
+                            <div style="background-color: #f5f5f5; border-radius: 5px; padding: 15px;">
+                                <pre style="white-space: pre-wrap; font-family: monospace; font-size: 12px; overflow-x: auto; max-height: 500px; overflow-y: auto;">""" + content + """</pre>
+                            </div>
+                        </div>"""
                 
             except Exception as e:
                 return_str += f"""
-                            <div style="color: red; padding: 15px; background-color: #ffebee; border-radius: 5px; margin-bottom: 20px;">
-                                <h4>Error parsing ST file</h4>
-                                <p>{str(e)}</p>
-                            </div>"""
+                        <div style="color: red; padding: 15px; background-color: #ffebee; border-radius: 5px; margin-bottom: 20px;">
+                            <h4>Error parsing ST file</h4>
+                            <p>{str(e)}</p>
+                        </div>"""
         else:
             return_str += """
                             <div style="color: #856404; padding: 15px; background-color: #fff3cd; border-radius: 5px; margin-bottom: 20px;">
