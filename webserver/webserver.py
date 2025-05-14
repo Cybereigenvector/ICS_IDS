@@ -14,6 +14,7 @@ import sys
 import ctypes
 import socket
 import mimetypes
+import shutil
 
 import flask 
 import flask_login
@@ -1597,6 +1598,40 @@ def intrusion_detection():
                     success, message = packet_capture.stop_capture(selected_interfaces)
                 else:
                     success, message = packet_capture.stop_capture()
+            elif 'delete_file' in flask.request.form:
+                # Handle file deletion
+                filename = flask.request.form['delete_file']
+                # Validate filename
+                import re
+                import os
+                import shutil
+                if re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+                    # Get paths for the file in both the capture and static directories
+                    source_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'packet_captures')
+                    source_file = os.path.join(source_dir, filename)
+                    
+                    static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'pcap_files')
+                    static_file = os.path.join(static_dir, filename)
+                    
+                    # Delete the files
+                    deleted = False
+                    try:
+                        if os.path.exists(source_file) and os.path.isfile(source_file):
+                            os.remove(source_file)
+                            deleted = True
+                            
+                        if os.path.exists(static_file) and os.path.isfile(static_file):
+                            os.remove(static_file)
+                            deleted = True
+                            
+                        if deleted:
+                            message = f"File '{filename}' has been deleted successfully."
+                        else:
+                            message = f"File '{filename}' not found."
+                    except Exception as e:
+                        message = f"Error deleting file '{filename}': {str(e)}"
+                else:
+                    message = "Invalid filename specified."
         
         # Get capture status
         is_capturing, status_info = packet_capture.get_capture_status()
@@ -1642,9 +1677,27 @@ def intrusion_detection():
                         <!-- Include the external tab script -->
                         <script src="/static/tabs.js"></script>
                         
+                        <!-- Add JavaScript to handle form submissions to preserve tab state -->
+                        <script>
+                            // Add event listener to all forms in the intrusion detection page
+                            document.addEventListener("DOMContentLoaded", function() {
+                                var forms = document.querySelectorAll('.datasource-form');
+                                forms.forEach(function(form) {
+                                    form.addEventListener('submit', function() {
+                                        // Get current active tab from localStorage
+                                        var activeTab = localStorage.getItem('activeTab');
+                                        if (!activeTab) activeTab = 'datasource'; // Default to datasource tab
+                                        
+                                        // Ensure datasource tab is shown immediately after page loads
+                                        localStorage.setItem('activeTab', activeTab);
+                                    });
+                                });
+                            });
+                        </script>
+                        
                         <div class="tab-container">
                             <button class="tab-button" onclick="openTab('alerts')">Alerts</button>
-                            <button class="tab-button" onclick="openTab('datasource')">Datasource</button>
+                            <button class="tab-button" onclick="openTab('datasource')">PCAP Capture</button>
                             <button class="tab-button" onclick="openTab('settings')">Settings</button>
                             <button class="tab-button" onclick="openTab('log')">Log</button>
                         </div>
@@ -1657,7 +1710,7 @@ def intrusion_detection():
                             <h3>Network Capture Configuration</h3>
                             <p>Select the network interfaces to capture packets from:</p>
                             
-                            <form action="/intrusion_detection" method="post">
+                            <form action="/intrusion_detection" method="post" class="datasource-form">
                                 <div style="margin-bottom:20px;">
                         """
         
@@ -1735,12 +1788,29 @@ def intrusion_detection():
         # Add rows for capture files
         if capture_files:
             for file in capture_files:
+                # Copy the file to the static directory for direct access
+                import shutil
+                import os
+                static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'pcap_files')
+                if not os.path.exists(static_path):
+                    os.makedirs(static_path)
+                static_file = os.path.join(static_path, file['filename'])
+                shutil.copy2(file['path'], static_file)
+                os.chmod(static_file, 0o644)  # Make it readable by the web server
+                
+                # Use a direct link to the static file
                 return_str += f"""
                                         <tr>
                                             <td>{file['interface']}</td>
                                             <td>{file['mtime_pretty']}</td>
                                             <td>{file['size_pretty']}</td>
-                                            <td><a href="/download_pcap/{file['filename']}" class="button" style="background-color:#0066FC; width:auto; padding:5px 10px; text-decoration:none; font-size:14px;">Download</a></td>
+                                            <td>
+                                                <a href="/static/pcap_files/{file['filename']}" download="{file['filename']}" target="_blank" class="button" style="background-color:#0066FC; width:auto; padding:5px 10px; text-decoration:none; font-size:14px; margin-right:5px;">Download</a>
+                                                <form method="post" action="/intrusion_detection" style="display:inline;" class="datasource-form">
+                                                    <input type="hidden" name="delete_file" value="{file['filename']}">
+                                                    <button type="submit" class="button" style="background-color:#F44336; width:auto; padding:5px 10px; text-decoration:none; font-size:14px; border:none; cursor:pointer;">Delete</button>
+                                                </form>
+                                            </td>
                                         </tr>
                 """
         else:
@@ -2778,26 +2848,77 @@ if __name__ == '__main__':
 
 @app.route('/download_pcap/<filename>', methods=['GET'])
 def download_pcap(filename):
-    """Download a PCAP file"""
+    """Download a PCAP file by copying it to a static downloads directory"""
     if (flask_login.current_user.is_authenticated == False):
         return flask.redirect(flask.url_for('login'))
     else:
         # Sanitize the filename to prevent directory traversal
         import os
         import re
-        filename = re.sub(r'[^a-zA-Z0-9_.-]', '', filename)
+        import shutil
         
-        # Make sure the file exists and is in the packet_captures directory
-        capture_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'packet_captures')
-        file_path = os.path.join(capture_dir, filename)
+        # Basic security check - only allow alphanumeric characters, underscores, hyphens and periods
+        if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+            return "Invalid filename", 400
         
-        if not os.path.exists(file_path) or not os.path.isfile(file_path):
-            return "File not found", 404
+        # Make sure the file exists in the packet_captures directory
+        source_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'packet_captures')
+        source_file = os.path.join(source_dir, filename)
         
-        # Serve the file for download
-        return flask.send_from_directory(
-            directory=capture_dir,
-            path=filename,
-            as_attachment=True,
-            mimetype='application/vnd.tcpdump.pcap'
-        )
+        # Target location in the static directory for direct download access
+        target_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'downloads')
+        target_file = os.path.join(target_dir, filename)
+        
+        # Make sure the downloads directory exists
+        if not os.path.exists(target_dir):
+            os.makedirs(target_dir)
+        
+        # Copy the file to the static/downloads directory
+        try:
+            if os.path.exists(source_file) and os.path.isfile(source_file):
+                shutil.copy2(source_file, target_file)
+                # Return a redirect to the static URL
+                download_url = flask.url_for('static', filename=f'downloads/{filename}')
+                return flask.redirect(download_url)
+            else:
+                return "Source file not found", 404
+        except Exception as e:
+            print(f"Error preparing download file: {e}")
+            return "Error preparing download", 500
+
+@app.route('/delete_pcap/<filename>', methods=['GET'])
+def delete_pcap(filename):
+    """Delete a PCAP file"""
+    if (flask_login.current_user.is_authenticated == False):
+        return flask.redirect(flask.url_for('login'))
+    else:
+        # Sanitize the filename to prevent directory traversal
+        import os
+        import re
+        
+        # Basic security check - only allow alphanumeric characters, underscores, hyphens and periods
+        if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+            return "Invalid filename", 400
+        
+        # Get paths for the file in both the capture and static directories
+        source_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'packet_captures')
+        source_file = os.path.join(source_dir, filename)
+        
+        static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'pcap_files')
+        static_file = os.path.join(static_dir, filename)
+        
+        # Delete the files
+        deleted = False
+        try:
+            if os.path.exists(source_file) and os.path.isfile(source_file):
+                os.remove(source_file)
+                deleted = True
+                
+            if os.path.exists(static_file) and os.path.isfile(static_file):
+                os.remove(static_file)
+                deleted = True
+        except Exception as e:
+            return f"Error deleting file: {str(e)}", 500
+        
+        # Redirect back to the intrusion detection page
+        return flask.redirect(flask.url_for('intrusion_detection'))

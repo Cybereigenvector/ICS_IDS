@@ -17,11 +17,29 @@ function openTab(tabName) {
   
   // Add active class to the clicked button
   event.currentTarget.classList.add("active");
+  
+  // Save the active tab to localStorage
+  localStorage.setItem('activeTab', tabName);
 }
 
-// Initialize the default tab on page load
+// Initialize the tab on page load
 document.addEventListener("DOMContentLoaded", function() {
-  // Get the first tab button and click it
+  // Check if we have a saved tab
+  var activeTab = localStorage.getItem('activeTab');
+  
+  // If we have a saved tab and it exists, open it
+  if (activeTab && document.getElementById(activeTab)) {
+    // Find the button for this tab
+    var tabButtons = document.getElementsByClassName("tab-button");
+    for (var i = 0; i < tabButtons.length; i++) {
+      if (tabButtons[i].getAttribute("onclick").includes("openTab('" + activeTab + "'")) {
+        tabButtons[i].click();
+        return;
+      }
+    }
+  }
+  
+  // Otherwise, get the first tab button and click it (default behavior)
   var firstTab = document.querySelector(".tab-button");
   if (firstTab) {
     firstTab.click();

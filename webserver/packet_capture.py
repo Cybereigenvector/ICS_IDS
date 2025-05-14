@@ -13,7 +13,7 @@ CAPTURE_DIR = 'packet_captures'
 # File to track running capture processes
 CAPTURE_PID_FILE = 'packet_capture.pid'
 # Path to tcpdump binary
-TCPDUMP_PATH = '/usr/sbin/tcpdump'
+TCPDUMP_PATH = '/usr/bin/tcpdump'
 
 def ensure_capture_dir():
     """Ensure the packet capture directory exists"""
@@ -73,14 +73,13 @@ def start_capture(interfaces):
         filename = f"{CAPTURE_DIR}/capture_{interface}_{timestamp}.pcap"
         
         try:
-            # Launch tcpdump as non-root (safer) with basic filtering
+            # Launch tcpdump with sudo to ensure it has permission to capture packets
             # -i: interface
             # -w: write to file
             # -n: don't resolve hostnames
             # -s 0: capture entire packet
-            # -Z: drop privileges after opening device
             cmd = [
-                'tcpdump', '-i', interface, '-w', filename, 
+                'sudo', 'tcpdump', '-i', interface, '-w', filename, 
                 '-n', '-s', '0', 'not port 22'  # Exclude SSH traffic
             ]
             
@@ -123,8 +122,24 @@ def stop_capture(interfaces=None):
         with open(CAPTURE_PID_FILE, 'r') as f:
             pids = f.read().strip().split('\n')
         
+        # Find the actual tcpdump processes, as our PID file contains the parent process IDs
+        tcpdump_pids = []
+        for pid in pids:
+            if pid:
+                try:
+                    # Use ps to find the actual tcpdump process spawned by sudo
+                    cmd = ["ps", "--ppid", pid, "-o", "pid="]
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    child_pids = result.stdout.strip().split('\n')
+                    for child_pid in child_pids:
+                        if child_pid.strip():
+                            tcpdump_pids.append(child_pid.strip())
+                except Exception as e:
+                    print(f"Error finding child processes for PID {pid}: {e}")
+        
         # If stopping all interfaces
         if interfaces is None:
+            # Kill the main processes (our sudo wrappers)
             for pid in pids:
                 if pid:
                     try:
@@ -134,6 +149,13 @@ def stop_capture(interfaces=None):
                         pass
                     except Exception as e:
                         print(f"Error stopping process {pid}: {e}")
+            
+            # Also try to kill the tcpdump processes directly
+            for pid in tcpdump_pids:
+                try:
+                    subprocess.run(["sudo", "kill", pid])
+                except Exception as e:
+                    print(f"Error killing tcpdump process {pid}: {e}")
             
             # Remove PID file
             os.remove(CAPTURE_PID_FILE)
@@ -155,6 +177,13 @@ def stop_capture(interfaces=None):
                     pass
                 except Exception as e:
                     print(f"Error stopping process {pid}: {e}")
+        
+        # Also try to kill the tcpdump processes directly
+        for pid in tcpdump_pids:
+            try:
+                subprocess.run(["sudo", "kill", pid])
+            except Exception as e:
+                print(f"Error killing tcpdump process {pid}: {e}")
         
         # Remove PID file
         os.remove(CAPTURE_PID_FILE)
@@ -263,14 +292,35 @@ def get_active_interfaces():
     Returns:
         list: List of interface names with active captures
     """
+    # First check if any tcpdump processes are running
+    active_interfaces = []
+    
+    try:
+        # Look for any active tcpdump processes run with sudo
+        cmd = ["sudo", "ps", "-ef"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        # Parse the output to find tcpdump commands and extract interface names
+        for line in result.stdout.splitlines():
+            if 'tcpdump' in line and '-i' in line:
+                parts = line.split()
+                for i, part in enumerate(parts):
+                    if part == '-i' and i+1 < len(parts):
+                        interface = parts[i+1]
+                        if interface not in active_interfaces and interface != 'any':
+                            active_interfaces.append(interface)
+        
+        # If we found active interfaces, return them
+        if active_interfaces:
+            return active_interfaces
+    except Exception as e:
+        print(f"Error checking for active tcpdump processes: {e}")
+    
+    # Fallback to checking PID file and process existence
     if not os.path.exists(CAPTURE_PID_FILE):
         return []
     
-    # Check capture filenames to determine which interfaces are active
-    active_interfaces = []
-    capture_files = get_capture_files()
-    
-    # Get active process PIDs
+    # Check if tcpdump processes are actually running
     active_pids = []
     try:
         with open(CAPTURE_PID_FILE, 'r') as f:
@@ -284,25 +334,46 @@ def get_active_interfaces():
     # If no active processes, return empty list
     if not active_pids:
         return []
-        
-    # Find currently active interfaces from the most recent capture files
-    if capture_files:
-        # Group by interface name
-        interfaces = set()
-        for file in capture_files:
-            interfaces.add(file['interface'])
-        
-        # Check if each interface is active
-        for interface in interfaces:
-            # Find the most recent file for this interface
-            newest_file = None
-            for file in capture_files:
-                if file['interface'] == interface:
-                    if newest_file is None or file['mtime'] > newest_file['mtime']:
-                        newest_file = file
+    
+    # Get the active interfaces by checking tcpdump process command lines
+    for pid in active_pids:
+        try:
+            # Try to find child processes (actual tcpdump processes)
+            cmd = ["ps", "--ppid", pid, "-o", "cmd="]
+            result = subprocess.run(cmd, capture_output=True, text=True)
             
-            # If we found a file and it's recent (within the last minute), consider it active
-            if newest_file and (time.time() - newest_file['mtime'] < 60):
-                active_interfaces.append(interface)
+            # Parse the command line to find the interface
+            for line in result.stdout.splitlines():
+                if 'tcpdump' in line and '-i' in line:
+                    parts = line.split()
+                    for i, part in enumerate(parts):
+                        if part == '-i' and i+1 < len(parts):
+                            interface = parts[i+1]
+                            if interface not in active_interfaces and interface != 'any':
+                                active_interfaces.append(interface)
+        except:
+            continue
+    
+    # Fallback to checking capture files if cmdline method didn't work
+    if not active_interfaces:
+        capture_files = get_capture_files()
+        if capture_files:
+            # Group by interface name
+            interfaces = set()
+            for file in capture_files:
+                interfaces.add(file['interface'])
+            
+            # Check if each interface is active
+            for interface in interfaces:
+                # Find the most recent file for this interface
+                newest_file = None
+                for file in capture_files:
+                    if file['interface'] == interface:
+                        if newest_file is None or file['mtime'] > newest_file['mtime']:
+                            newest_file = file
+                
+                # If we found a file and it's recent (within the last 5 minutes), consider it active
+                if newest_file and (time.time() - newest_file['mtime'] < 300):
+                    active_interfaces.append(interface)
     
     return active_interfaces 
