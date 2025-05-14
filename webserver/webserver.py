@@ -1562,24 +1562,71 @@ def intrusion_detection():
     else:
         if (openplc_runtime.status() == "Compiling"): return draw_compiling_page()
         
-        # Import the packet capture module
-        import packet_capture
-        
-        # Get network interfaces
-        import subprocess
-        network_interfaces = []
+        # Import modules with error handling
         try:
-            # Try to get network interfaces using ip command
-            result = subprocess.run(['ip', 'a'], capture_output=True, text=True)
-            for line in result.stdout.split('\n'):
-                if line.strip().startswith(tuple(str(i) + ':' for i in range(10))):
-                    interface = line.split(':')[1].strip()
-                    # Skip loopback interface
-                    if interface != 'lo':
-                        network_interfaces.append(interface)
-        except:
-            # Fallback to common interface names
-            network_interfaces = ['eth0', 'wlan0']
+            import packet_capture
+        except ImportError as e:
+            error_msg = f"Error importing packet_capture module: {str(e)}"
+            print(error_msg)
+            return pages.w3_style + draw_top_div() + f"""
+                <div class='main'>
+                    <div class='w3-sidebar w3-bar-block' style='width:250px; background-color:#1F1F1F'></div>
+                    <div style="margin-left:320px; margin-right:70px">
+                        <div style="w3-container">
+                        <br>
+                        <h2>Intrusion Detection</h2>
+                        <div class="error-card" style="background-color:#ffcccc; padding:20px; border-radius:5px;">
+                            <h3>Module Error</h3>
+                            <p>{error_msg}</p>
+                            <p>Please make sure all required Python packages are installed.</p>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+            """
+            
+        try:
+            import pv_capture
+        except ImportError as e:
+            error_msg = f"Error importing pv_capture module: {str(e)}"
+            print(error_msg)
+            return pages.w3_style + draw_top_div() + f"""
+                <div class='main'>
+                    <div class='w3-sidebar w3-bar-block' style='width:250px; background-color:#1F1F1F'></div>
+                    <div style="margin-left:320px; margin-right:70px">
+                        <div style="w3-container">
+                        <br>
+                        <h2>Intrusion Detection</h2>
+                        <div class="error-card" style="background-color:#ffcccc; padding:20px; border-radius:5px;">
+                            <h3>Module Error</h3>
+                            <p>{error_msg}</p>
+                            <p>Please make sure all required Python packages are installed.</p>
+                        </div>
+                        </div>
+                    </div>
+                </div>
+            """
+        
+        # Get network interfaces with error handling
+        try:
+            import subprocess
+            network_interfaces = []
+            try:
+                # Try to get network interfaces using ip command
+                result = subprocess.run(['ip', 'a'], capture_output=True, text=True)
+                for line in result.stdout.split('\n'):
+                    if line.strip().startswith(tuple(str(i) + ':' for i in range(10))):
+                        interface = line.split(':')[1].strip()
+                        # Skip loopback interface
+                        if interface != 'lo':
+                            network_interfaces.append(interface)
+            except:
+                # Fallback to common interface names
+                network_interfaces = ['eth0', 'wlan0']
+        except Exception as e:
+            error_msg = f"Error getting network interfaces: {str(e)}"
+            print(error_msg)
+            network_interfaces = []
         
         # Handle form submission for packet capture
         message = ""
@@ -1587,17 +1634,42 @@ def intrusion_detection():
             if 'start_capture' in flask.request.form:
                 selected_interfaces = flask.request.form.getlist('interfaces')
                 if selected_interfaces:
-                    success, msg = packet_capture.start_capture(selected_interfaces)
-                    message = msg
+                    try:
+                        success, msg = packet_capture.start_capture(selected_interfaces)
+                        message = msg
+                    except Exception as e:
+                        message = f"Error starting packet capture: {str(e)}"
+                        print(message)
                 else:
                     message = "Please select at least one interface"
             elif 'stop_capture' in flask.request.form:
                 # If specific interfaces were checked, stop only those; otherwise stop all
                 selected_interfaces = flask.request.form.getlist('interfaces')
-                if selected_interfaces:
-                    success, message = packet_capture.stop_capture(selected_interfaces)
-                else:
-                    success, message = packet_capture.stop_capture()
+                try:
+                    if selected_interfaces:
+                        success, message = packet_capture.stop_capture(selected_interfaces)
+                    else:
+                        success, message = packet_capture.stop_capture()
+                except Exception as e:
+                    message = f"Error stopping packet capture: {str(e)}"
+                    print(message)
+            elif 'start_pv_capture' in flask.request.form:
+                sample_rate = flask.request.form.get('sample_rate', '500')
+                try:
+                    sample_rate = int(sample_rate)
+                    try:
+                        success, message = pv_capture.start_capture(sample_rate)
+                    except Exception as e:
+                        message = f"Error starting PV capture: {str(e)}"
+                        print(message)
+                except ValueError:
+                    message = "Invalid sample rate value"
+            elif 'stop_pv_capture' in flask.request.form:
+                try:
+                    success, message = pv_capture.stop_capture()
+                except Exception as e:
+                    message = f"Error stopping PV capture: {str(e)}"
+                    print(message)
             elif 'delete_file' in flask.request.form:
                 # Handle file deletion
                 filename = flask.request.form['delete_file']
@@ -1632,12 +1704,70 @@ def intrusion_detection():
                         message = f"Error deleting file '{filename}': {str(e)}"
                 else:
                     message = "Invalid filename specified."
+            elif 'delete_pv_file' in flask.request.form:
+                # Handle PV file deletion
+                filename = flask.request.form['delete_pv_file']
+                # Validate filename
+                import re
+                import os
+                import shutil
+                if re.match(r'^[a-zA-Z0-9_.-]+$', filename):
+                    # Get paths for the file in both the capture and static directories
+                    source_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pv_captures')
+                    source_file = os.path.join(source_dir, filename)
+                    
+                    static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'pv_files')
+                    static_file = os.path.join(static_dir, filename)
+                    
+                    # Delete the files
+                    deleted = False
+                    try:
+                        if os.path.exists(source_file) and os.path.isfile(source_file):
+                            os.remove(source_file)
+                            deleted = True
+                            
+                        if os.path.exists(static_file) and os.path.isfile(static_file):
+                            os.remove(static_file)
+                            deleted = True
+                            
+                        if deleted:
+                            message = f"PV capture file '{filename}' has been deleted successfully."
+                        else:
+                            message = f"PV capture file '{filename}' not found."
+                    except Exception as e:
+                        message = f"Error deleting PV capture file '{filename}': {str(e)}"
+                else:
+                    message = "Invalid filename specified."
         
         # Get capture status
-        is_capturing, status_info = packet_capture.get_capture_status()
+        try:
+            is_capturing, status_info = packet_capture.get_capture_status()
+        except Exception as e:
+            is_capturing = False
+            status_info = f"Error getting capture status: {str(e)}"
+            print(status_info)
         
         # Get list of active interfaces
-        active_interfaces = packet_capture.get_active_interfaces()
+        try:
+            active_interfaces = packet_capture.get_active_interfaces()
+        except Exception as e:
+            active_interfaces = []
+            print(f"Error getting active interfaces: {str(e)}")
+        
+        # Get PV capture status
+        try:
+            is_pv_capturing, pv_status_info = pv_capture.get_capture_status()
+        except Exception as e:
+            is_pv_capturing = False
+            pv_status_info = f"Error getting PV capture status: {str(e)}"
+            print(pv_status_info)
+        
+        # Get PV capture files
+        try:
+            pv_files = pv_capture.get_capture_files()
+        except Exception as e:
+            pv_files = []
+            print(f"Error getting PV capture files: {str(e)}")
         
         return_str = pages.w3_style + pages.intrusion_detection_head + draw_top_div()
         return_str += """
@@ -1698,6 +1828,7 @@ def intrusion_detection():
                         <div class="tab-container">
                             <button class="tab-button" onclick="openTab('alerts')">Alerts</button>
                             <button class="tab-button" onclick="openTab('datasource')">PCAP Capture</button>
+                            <button class="tab-button" onclick="openTab('pv_capture')">Process Variable Capture</button>
                             <button class="tab-button" onclick="openTab('settings')">Settings</button>
                             <button class="tab-button" onclick="openTab('log')">Log</button>
                         </div>
@@ -1825,6 +1956,97 @@ def intrusion_detection():
                                 </div>
                                 <div style="margin-top:15px;">
                                     <p><b>Note:</b> PCAP files can be analyzed using tools like Wireshark or tcpdump.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="pv_capture" class="tab-content" style="display:none;">
+                            <h3>Process Variable Capture Configuration</h3>
+                            <p>Monitor and capture process variable changes for intrusion detection analysis:</p>
+                            
+                            <form action="/intrusion_detection" method="post" class="datasource-form">
+                                <div style="margin-bottom:20px;">
+                                    <label for="sample_rate">Sample Rate (ms):</label>
+                                    <select id="sample_rate" name="sample_rate" style="width:100px; margin-left:10px;">
+                                        <option value="10">10</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                        <option value="500" selected>500</option>
+                                        <option value="1000">1000</option>
+                                        <option value="5000">5000</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <button type="submit" name="start_pv_capture" value="start" class="button" style="background-color:#4CAF50; width:auto; padding:10px 20px; margin-right:15px;">Start PV Capture</button>
+                                    <button type="submit" name="stop_pv_capture" value="stop" class="button" style="background-color:#F44336; width:auto; padding:10px 20px;">Stop PV Capture</button>
+                                </div>
+                            </form>
+                            
+                            <div style="margin-top:30px;">
+                                <h4>PV Capture Status</h4>
+                                <div class="detection-logs" style="height:150px;">
+                                    <div id="pv-capture-status">"""
+        
+        # Add PV capture status information
+        if is_pv_capturing:
+            status_color = "color: #4CAF50; font-weight: bold;"  # Green for active
+            return_str += f"""<span style="{status_color}">ACTIVE PV CAPTURE</span><br>"""
+        else:
+            status_color = "color: #F44336; font-weight: bold;"  # Red for inactive
+            return_str += f"""<span style="{status_color}">NO ACTIVE PV CAPTURE</span><br>"""
+        
+        # Add PV status info
+        return_str += f"{pv_status_info}<br>"
+        
+        return_str += """
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Available PV Capture Files Table -->
+                            <div style="margin-top:30px;">
+                                <h4>Available PV Capture Files</h4>
+                                <div style="margin-top:15px; overflow-x:auto;">
+                                    <table>
+                                        <tr>
+                                            <th>Filename</th>
+                                            <th>Capture Time</th>
+                                            <th>Size</th>
+                                            <th>Action</th>
+                                        </tr>"""
+        
+        # Add rows for PV capture files
+        if pv_files:
+            for file in pv_files:
+                # Create a static file link
+                static_url = f"/static/pv_files/{file['filename']}"
+                
+                return_str += f"""
+                                        <tr>
+                                            <td>{file['filename']}</td>
+                                            <td>{file['mtime_pretty']}</td>
+                                            <td>{file['size_pretty']}</td>
+                                            <td>
+                                                <a href="{static_url}" download="{file['filename']}" target="_blank" class="button" style="background-color:#0066FC; width:auto; padding:5px 10px; text-decoration:none; font-size:14px; margin-right:5px;">Download</a>
+                                                <form method="post" action="/intrusion_detection" style="display:inline;" class="datasource-form">
+                                                    <input type="hidden" name="delete_pv_file" value="{file['filename']}">
+                                                    <button type="submit" class="button" style="background-color:#F44336; width:auto; padding:5px 10px; text-decoration:none; font-size:14px; border:none; cursor:pointer;">Delete</button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                """
+        else:
+            return_str += """
+                                        <tr>
+                                            <td colspan="4" style="text-align:center;">No capture files available</td>
+                                        </tr>
+                """
+        
+        return_str += """
+                                    </table>
+                                </div>
+                                <div style="margin-top:15px;">
+                                    <p><b>Note:</b> PV capture files contain recorded changes to PLC variables over time in CSV format.</p>
                                 </div>
                             </div>
                         </div>

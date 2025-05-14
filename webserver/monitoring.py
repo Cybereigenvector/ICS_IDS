@@ -1,6 +1,27 @@
 import time, threading
 from struct import *
-from pymodbus.client.sync import ModbusTcpClient
+
+# Handle PyModbus import with full compatibility
+ModbusTcpClient = None
+
+# Try all possible import paths for PyModbus
+try:
+    # For very recent versions
+    from pymodbus.client import ModbusTcpClient
+except ImportError:
+    try:
+        # For versions 2.5.0 to 3.0.0
+        from pymodbus.client.sync import ModbusTcpClient
+    except ImportError:
+        try:
+            # For Debian package or very old versions
+            from pymodbus.client.tcp import ModbusTcpClient
+        except ImportError:
+            # Last resort - try specific path for pymodbus 3.x
+            try:
+                from pymodbus.client.tcp import ModbusTcpClient as ModbusTcpClient
+            except ImportError:
+                print("WARNING: Could not import ModbusTcpClient. Monitoring functionality will be limited.")
 
 class debug_var():
     name = ''
