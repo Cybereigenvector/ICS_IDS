@@ -1828,7 +1828,7 @@ def intrusion_detection():
                         <div class="tab-container">
                             <button class="tab-button" onclick="openTab('alerts')">Alerts</button>
                             <button class="tab-button" onclick="openTab('datasource')">PCAP Capture</button>
-                            <button class="tab-button" onclick="openTab('pv_capture')">Process Variable Capture</button>
+                            <button class="tab-button" onclick="openTab('pv_capture')">Process Data and PLC Statistics</button>
                             <button class="tab-button" onclick="openTab('settings')">Settings</button>
                             <button class="tab-button" onclick="openTab('log')">Log</button>
                         </div>
@@ -1961,8 +1961,20 @@ def intrusion_detection():
                         </div>
                         
                         <div id="pv_capture" class="tab-content" style="display:none;">
-                            <h3>Process Variable Capture Configuration</h3>
-                            <p>Monitor and capture process variable changes for intrusion detection analysis:</p>
+                            <h3>Process Data and PLC Statistics Configuration</h3>
+                            <p>Monitor and capture process variables and system statistics for intrusion detection analysis:</p>
+                            
+                            <div style="margin-bottom:20px; padding:10px; background-color:#f5f5f5; border:1px solid #ddd; border-radius:4px;">
+                                <p><strong>Captured Statistics:</strong></p>
+                                <ul style="margin-top:5px; padding-left:20px;">
+                                    <li><strong>CPU Metrics:</strong> CPU Load %, CPU Idle %</li>
+                                    <li><strong>Memory Metrics:</strong> Total RAM, Used RAM, Free RAM, Heap Fragmentation %</li>
+                                    <li><strong>Storage Metrics:</strong> Disk Total GB, Disk Used GB, Disk Free GB</li>
+                                    <li><strong>System Health:</strong> ISR Overruns, SD Writes, SD I/O Time (ms)</li>
+                                    <li><strong>PLC Variables:</strong> All PLC variables from the monitoring page</li>
+                                </ul>
+                                <p><em>Note: Capture will work even if the PLC is not running, but only system metrics will be available.</em></p>
+                            </div>
                             
                             <form action="/intrusion_detection" method="post" class="datasource-form">
                                 <div style="margin-bottom:20px;">
@@ -1977,23 +1989,23 @@ def intrusion_detection():
                                     </select>
                                 </div>
                                 <div>
-                                    <button type="submit" name="start_pv_capture" value="start" class="button" style="background-color:#4CAF50; width:auto; padding:10px 20px; margin-right:15px;">Start PV Capture</button>
-                                    <button type="submit" name="stop_pv_capture" value="stop" class="button" style="background-color:#F44336; width:auto; padding:10px 20px;">Stop PV Capture</button>
+                                    <button type="submit" name="start_pv_capture" value="start" class="button" style="background-color:#4CAF50; width:auto; padding:10px 20px; margin-right:15px;">Start Data Capture</button>
+                                    <button type="submit" name="stop_pv_capture" value="stop" class="button" style="background-color:#F44336; width:auto; padding:10px 20px;">Stop Data Capture</button>
                                 </div>
                             </form>
                             
                             <div style="margin-top:30px;">
-                                <h4>PV Capture Status</h4>
+                                <h4>Capture Status</h4>
                                 <div class="detection-logs" style="height:150px;">
                                     <div id="pv-capture-status">"""
         
         # Add PV capture status information
         if is_pv_capturing:
             status_color = "color: #4CAF50; font-weight: bold;"  # Green for active
-            return_str += f"""<span style="{status_color}">ACTIVE PV CAPTURE</span><br>"""
+            return_str += f"""<span style="{status_color}">ACTIVE DATA CAPTURE</span><br>"""
         else:
             status_color = "color: #F44336; font-weight: bold;"  # Red for inactive
-            return_str += f"""<span style="{status_color}">NO ACTIVE PV CAPTURE</span><br>"""
+            return_str += f"""<span style="{status_color}">NO ACTIVE DATA CAPTURE</span><br>"""
         
         # Add PV status info
         return_str += f"{pv_status_info}<br>"
@@ -2005,7 +2017,7 @@ def intrusion_detection():
                             
                             <!-- Available PV Capture Files Table -->
                             <div style="margin-top:30px;">
-                                <h4>Available PV Capture Files</h4>
+                                <h4>Available Capture Files</h4>
                                 <div style="margin-top:15px; overflow-x:auto;">
                                     <table>
                                         <tr>

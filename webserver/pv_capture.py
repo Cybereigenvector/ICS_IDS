@@ -69,6 +69,20 @@ except ImportError:
 
 from collections import defaultdict
 
+# Function to check if PLC is running
+def is_plc_running():
+    """Check if the OpenPLC Runtime is running"""
+    try:
+        # Check if there's a runtime running with a socket open
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex(('localhost', 502))  # Check if Modbus port 502 is open
+        sock.close()
+        return result == 0
+    except Exception as e:
+        print(f"Error checking PLC status: {e}")
+        return False
+
 # Global variables
 active_capture = False
 capture_thread = None
@@ -152,10 +166,13 @@ def start_capture(sample_rate=500):
     
     # Check if required modules are available
     if None in [requests, BeautifulSoup, csv]:
-        return False, "Cannot start PV capture: Missing required Python modules. Install requests, beautifulsoup4 packages."
+        return False, "Cannot start data capture: Missing required Python modules. Install requests, beautifulsoup4 packages."
     
     if active_capture:
-        return False, "PV capture is already running"
+        return False, "Data capture is already running"
+    
+    # Check if PLC is running 
+    plc_running = is_plc_running()
     
     # Set up capture parameters
     capture_rate = sample_rate
@@ -171,14 +188,17 @@ def start_capture(sample_rate=500):
     capture_thread.daemon = True
     capture_thread.start()
     
-    return True, f"Process variable capture started with sample rate {sample_rate}ms"
+    if not plc_running:
+        return True, f"Process data capture started with sample rate {sample_rate}ms. WARNING: PLC is not running - system metrics will be captured, but PLC variables will not be available."
+    else:
+        return True, f"Process data capture started with sample rate {sample_rate}ms"
 
 def stop_capture():
     """Stop the currently running PV capture session"""
     global active_capture, capture_thread
     
     if not active_capture:
-        return False, "No active PV capture to stop"
+        return False, "No active data capture to stop"
     
     # Signal the thread to stop
     active_capture = False
@@ -187,16 +207,16 @@ def stop_capture():
         time.sleep(0.5)
         capture_thread = None
     
-    return True, "Process variable capture stopped"
+    return True, "Process data capture stopped"
 
 def get_capture_status():
     """Get the current status of PV capture"""
     global active_capture, capture_rate
     
     if active_capture:
-        return True, f"Active capture running at {capture_rate}ms sample rate"
+        return True, f"Active data capture running at {capture_rate}ms sample rate"
     else:
-        return False, "No active capture"
+        return False, "No active data capture"
 
 def get_capture_files():
     """Get a list of available PV capture files"""
