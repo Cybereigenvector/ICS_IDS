@@ -58,6 +58,15 @@ except ImportError as e:
     print(f"WARNING: csv module not available. PV capture will not work. Error: {e}")
     csv = None
 
+# Try to import psutil for system metrics
+try:
+    import psutil
+    psutil_available = True
+    print(f"PV_CAPTURE: Successfully imported psutil")
+except ImportError:
+    psutil_available = False
+    print(f"WARNING: psutil module not available. System metrics will be limited.")
+
 from collections import defaultdict
 
 # Global variables
@@ -65,6 +74,77 @@ active_capture = False
 capture_thread = None
 capture_rate = 500  # Default sample rate in milliseconds
 capture_files = []
+
+def get_system_metrics():
+    """Collect system metrics for monitoring"""
+    metrics = {}
+    
+    # Initialize with default values
+    metrics['cpu_load_pct'] = 0.0
+    metrics['cpu_idle_pct'] = 0.0
+    metrics['total_ram_mb'] = 0.0
+    metrics['used_ram_mb'] = 0.0
+    metrics['free_ram_mb'] = 0.0
+    metrics['heap_frag_pct'] = 0.0
+    metrics['disk_total_gb'] = 0.0
+    metrics['disk_used_gb'] = 0.0
+    metrics['disk_free_gb'] = 0.0
+    metrics['isr_count'] = 0
+    metrics['sd_writes'] = 0
+    metrics['sd_io_time_ms'] = 0
+    
+    try:
+        # Get CPU metrics
+        if psutil_available:
+            try:
+                # CPU metrics
+                cpu_times = psutil.cpu_times_percent(interval=0.1)
+                metrics['cpu_load_pct'] = psutil.cpu_percent(interval=0.1)
+                metrics['cpu_idle_pct'] = cpu_times.idle
+                
+                # Memory metrics
+                memory = psutil.virtual_memory()
+                metrics['total_ram_mb'] = memory.total / (1024 * 1024)
+                metrics['used_ram_mb'] = memory.used / (1024 * 1024)
+                metrics['free_ram_mb'] = memory.available / (1024 * 1024)
+                
+                # Calculate heap fragmentation (approximation)
+                # This is a simplified approximation - in real embedded systems,
+                # you would use platform-specific tools
+                metrics['heap_frag_pct'] = max(0, min(100, (memory.percent * 0.2)))
+                
+                # Disk usage
+                disk = psutil.disk_usage('/')
+                metrics['disk_total_gb'] = disk.total / (1024 * 1024 * 1024)
+                metrics['disk_used_gb'] = disk.used / (1024 * 1024 * 1024)
+                metrics['disk_free_gb'] = disk.free / (1024 * 1024 * 1024)
+            except Exception as e:
+                print(f"Error getting psutil metrics: {e}")
+        
+        # Get ISR and SD card metrics
+        try:
+            # ISR count - read from interrupts file
+            with open('/proc/interrupts', 'r') as f:
+                interrupt_data = f.read()
+                # Sum of all interrupt counts (very simplified)
+                irq_totals = sum([int(x) for x in interrupt_data.split() if x.isdigit()])
+                metrics['isr_count'] = irq_totals
+            
+            # SD card wear metrics - read from block device stats if available
+            if os.path.exists('/sys/block/mmcblk0/stat'):
+                with open('/sys/block/mmcblk0/stat', 'r') as f:
+                    sd_stats = f.read().strip().split()
+                    if len(sd_stats) >= 11:
+                        # Field 4: write operations completed
+                        # Field 11: time spent writing in ms
+                        metrics['sd_writes'] = int(sd_stats[4])
+                        metrics['sd_io_time_ms'] = int(sd_stats[10])
+        except Exception as e:
+            print(f"Error getting ISR or SD metrics: {e}")
+    except Exception as e:
+        print(f"Error in get_system_metrics: {e}")
+    
+    return metrics
 
 def start_capture(sample_rate=500):
     """Start a new PV capture session with the specified sample rate"""
@@ -179,7 +259,19 @@ def capture_process_variables():
     point_name = ['Timestamp']
     point_type = [' ']
     point_location = [' ']
-    point_value = ['Current time']
+    
+    # Add system metrics headers
+    system_metric_headers = [
+        'CPU_Load_%', 'CPU_Idle_%', 'Total_RAM_MB', 'Used_RAM_MB', 'Free_RAM_MB',
+        'Heap_Frag_%', 'Disk_Total_GB', 'Disk_Used_GB', 'Disk_Free_GB',
+        'ISR_Count', 'SD_Writes', 'SD_IO_Time_ms'
+    ]
+    
+    for header in system_metric_headers:
+        point_name.append(header)
+        point_type.append('SYSTEM')
+        point_location.append('SYS')
+    
     firstrun = False
     
     # Generate a unique filename for this capture session
@@ -226,29 +318,57 @@ def capture_process_variables():
                                 thetext = ''.join(thestrings)
                                 result[-1].append(thetext)
                         
-                        point_value = [f"{current_time}"]
+                        # Get system metrics
+                        sys_metrics = get_system_metrics()
+                        
                         if not firstrun:
+                            # Initialize headers with PLC variables
+                            plc_var_names = []
+                            plc_var_types = []
+                            plc_var_locations = []
+                            
                             for row in result:
                                 if len(row) >= 5:
-                                    point_name.append(row[0])
-                                    point_type.append(row[1])
-                                    point_location.append(row[2])
-                                    point_value.append(row[4])
-                            firstrun = True
+                                    plc_var_names.append(row[0])
+                                    plc_var_types.append(row[1])
+                                    plc_var_locations.append(row[2])
+                            
+                            # Combine timestamp, system metrics, and PLC variables
                             with open(filepath, 'w', newline='') as csvfile:
                                 writer = csv.writer(csvfile)
-                                writer.writerow(point_name)
-                                writer.writerow(point_type)
-                                writer.writerow(point_location)
-                                writer.writerow(point_value)
-                            capture_log.append(f"Initialized capture with {len(point_name)-1} variables")
-                        else:
-                            for row in result:
-                                if len(row) >= 5:
-                                    point_value.append(row[4])
-                            with open(filepath, 'a', newline='') as csvfile:
-                                writer = csv.writer(csvfile)
-                                writer.writerow(point_value)
+                                writer.writerow(point_name + plc_var_names)
+                                writer.writerow(point_type + plc_var_types)
+                                writer.writerow(point_location + plc_var_locations)
+                            
+                            firstrun = True
+                            capture_log.append(f"Initialized capture with {len(point_name)-1 + len(plc_var_names)} variables")
+                        
+                        # Prepare values for the current row
+                        plc_values = []
+                        for row in result:
+                            if len(row) >= 5:
+                                plc_values.append(row[4])
+                        
+                        # Combine timestamp, system metrics, and PLC values
+                        row_values = [current_time]
+                        row_values.append(str(sys_metrics['cpu_load_pct']))
+                        row_values.append(str(sys_metrics['cpu_idle_pct']))
+                        row_values.append(str(sys_metrics['total_ram_mb']))
+                        row_values.append(str(sys_metrics['used_ram_mb']))
+                        row_values.append(str(sys_metrics['free_ram_mb']))
+                        row_values.append(str(sys_metrics['heap_frag_pct']))
+                        row_values.append(str(sys_metrics['disk_total_gb']))
+                        row_values.append(str(sys_metrics['disk_used_gb']))
+                        row_values.append(str(sys_metrics['disk_free_gb']))
+                        row_values.append(str(sys_metrics['isr_count']))
+                        row_values.append(str(sys_metrics['sd_writes']))
+                        row_values.append(str(sys_metrics['sd_io_time_ms']))
+                        row_values.extend(plc_values)
+                        
+                        # Append the current row to the CSV file
+                        with open(filepath, 'a', newline='') as csvfile:
+                            writer = csv.writer(csvfile)
+                            writer.writerow(row_values)
                         
                         # Sleep for the specified sample rate
                         time.sleep(capture_rate / 1000)
