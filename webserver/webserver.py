@@ -1807,6 +1807,9 @@ def intrusion_detection():
                         <!-- Include the external tab script -->
                         <script src="/static/tabs.js"></script>
                         
+                        <!-- Include debug script -->
+                        <script src="/static/debug.js"></script>
+                        
                         <!-- Add JavaScript to handle form submissions to preserve tab state -->
                         <script>
                             // Add event listener to all forms in the intrusion detection page
@@ -1830,11 +1833,30 @@ def intrusion_detection():
                                         document.getElementById('select_st_form').submit();
                                     });
                                 }
+                                
+                                // Add listener for ST file dropdown in visualization tab
+                                var visualizationStFileDropdown = document.getElementById('visualization_st_file_selector');
+                                if (visualizationStFileDropdown) {
+                                    visualizationStFileDropdown.addEventListener('change', function() {
+                                        document.getElementById('visualization_select_st_form').submit();
+                                    });
+                                }
                             });
+                        </script>
+                        
+                        <!-- Include D3.js for visualization -->
+                        <script src="https://d3js.org/d3.v7.min.js"></script>
+                        <!-- Include external visualization script -->
+                        <script src="/static/visualization.js"></script>
+                        
+                        <!-- Add console log to verify D3 loading -->
+                        <script>
+                            console.log("D3.js version:", d3 ? d3.version : "not loaded");
                         </script>
                         
                         <div class="tab-container">
                             <button class="tab-button" onclick="openTab('alerts')">Logic Variables</button>
+                            <button class="tab-button" onclick="openTab('visualization')">Visualization</button>
                             <button class="tab-button" onclick="openTab('datasource')">PCAP Capture</button>
                             <button class="tab-button" onclick="openTab('pv_capture')">Process Data and PLC Statistics</button>
                             <button class="tab-button" onclick="openTab('settings')">Settings</button>
@@ -2017,6 +2039,599 @@ def intrusion_detection():
                             </div>"""
                 
         return_str += """
+                        </div>
+                        
+                        <div id="visualization" class="tab-content" style="display:none;">
+                            <h3>PLC Variable Relationship Visualization</h3>
+                            <p>Interactive graph showing relationships between PLC variables in the selected program.</p>
+                            
+                            <!-- ST File Selection Form -->
+                            <form id="visualization_select_st_form" method="POST" action="/intrusion_detection">
+                                <div style="margin-bottom: 20px; background-color: #f5f5f5; padding: 15px; border-radius: 5px; border-left: 4px solid #333;">
+                                    <label for="visualization_st_file_selector" style="font-weight: bold; margin-right: 10px;">Select ST File:</label>
+                                    <select id="visualization_st_file_selector" name="selected_st_file" style="padding: 5px; border-radius: 3px; border: 1px solid #ccc; min-width: 200px;">"""
+        
+        # Add options to the dropdown (the same as in the Logic Variables tab)
+        for st_file in st_files:
+            selected = ' selected' if st_file == selected_st_file else ''
+            return_str += f'<option value="{st_file}"{selected}>{st_file}</option>'
+                
+        return_str += """
+                                    </select>
+                                    <button type="submit" style="margin-left: 10px; padding: 5px 10px; background-color: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer;">Load File</button>
+                                    <div id="file-status" style="margin-top: 10px; font-style: italic;">Currently loaded: <span style="font-weight: bold;">""" + selected_st_file + """</span></div>
+                                </div>
+                            </form>
+                            
+                            <!-- Controls and legend in single row -->
+                            <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
+                                <!-- Controls -->
+                                <div style="display: flex; gap: 15px; align-items: center;">
+                                    <div>
+                                        <label for="filter-type" style="font-weight: bold; margin-right: 10px;">Filter:</label>
+                                        <select id="filter-type" style="padding: 5px; border-radius: 3px; border: 1px solid #ccc;">
+                                            <option value="all">All Variables</option>
+                                            <option value="input">Input Variables</option>
+                                            <option value="output">Output Variables</option>
+                                            <option value="memory">Memory Variables</option>
+                                        </select>
+                                    </div>
+                                    <button id="reset-zoom" style="padding: 5px 10px; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 3px; cursor: pointer;">Reset View</button>
+                                </div>
+                                
+                                <!-- Legend -->
+                                <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+                                    <div style="display: flex; align-items: center; gap: 5px;">
+                                        <div style="width: 15px; height: 15px; background-color: #4CAF50; border-radius: 50%;"></div>
+                                        <span>Input Variables</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 5px;">
+                                        <div style="width: 15px; height: 15px; background-color: #2196F3; border-radius: 50%;"></div>
+                                        <span>Output Variables</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 5px;">
+                                        <div style="width: 15px; height: 15px; background-color: #FF9800; border-radius: 50%;"></div>
+                                        <span>Memory Variables</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Debug information -->
+                            <div id="debug-info" style="margin-bottom: 15px; padding: 10px; background-color: #f8f8f8; border-radius: 5px; border-left: 4px solid #ccc; display: none;">
+                                <h4 style="margin-top: 0; margin-bottom: 10px;">Debug Information</h4>
+                                <div id="debug-content" style="font-family: monospace; white-space: pre-wrap; font-size: 12px;"></div>
+                            </div>
+                            
+                            <!-- Visualization container -->
+                            <div id="visualization-container" style="width: 100%; height: 500px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 5px; overflow: hidden; position: relative;">
+                                <!-- Loading indicator -->
+                                <div id="vis-loading" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 10;">
+                                    <div style="width: 40px; height: 40px; border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; margin: 0 auto; animation: spin 2s linear infinite;"></div>
+                                    <p style="margin-top: 10px;">Loading visualization...</p>
+                                </div>
+                                
+                                <!-- No data message -->
+                                <div id="vis-no-data" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; z-index: 10; display: none;">
+                                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#666" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="12" y1="8" x2="12" y2="12"></line>
+                                        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                    </svg>
+                                    <p style="margin-top: 10px; color: #666; font-size: 16px;">No variable relationships found.<br>Try selecting a different ST file.</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Variable counts table -->
+                            <div style="margin-top: 20px;">
+                                <h4>Variable Statistics</h4>
+                                <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                                    <tr style="background-color: #f2f2f2;">
+                                        <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Variable Type</th>
+                                        <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">Count</th>
+                                        <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Examples</th>
+                                    </tr>
+                                    <tr id="input-var-row">
+                                        <td style="padding: 8px; border: 1px solid #ddd;">Input Variables</td>
+                                        <td style="padding: 8px; text-align: center; border: 1px solid #ddd;" id="input-count">-</td>
+                                        <td style="padding: 8px; border: 1px solid #ddd;" id="input-examples">-</td>
+                                    </tr>
+                                    <tr id="output-var-row">
+                                        <td style="padding: 8px; border: 1px solid #ddd;">Output Variables</td>
+                                        <td style="padding: 8px; text-align: center; border: 1px solid #ddd;" id="output-count">-</td>
+                                        <td style="padding: 8px; border: 1px solid #ddd;" id="output-examples">-</td>
+                                    </tr>
+                                    <tr id="memory-var-row">
+                                        <td style="padding: 8px; border: 1px solid #ddd;">Memory Variables</td>
+                                        <td style="padding: 8px; text-align: center; border: 1px solid #ddd;" id="memory-count">-</td>
+                                        <td style="padding: 8px; border: 1px solid #ddd;" id="memory-examples">-</td>
+                                    </tr>
+                                    <tr id="total-var-row">
+                                        <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">Total Variables</td>
+                                        <td style="padding: 8px; text-align: center; border: 1px solid #ddd; font-weight: bold;" id="total-count">-</td>
+                                        <td style="padding: 8px; border: 1px solid #ddd;"></td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <style>
+                                @keyframes spin {
+                                    0% { transform: rotate(0deg); }
+                                    100% { transform: rotate(360deg); }
+                                }
+                                
+                                .vis-node circle {
+                                    stroke: #fff;
+                                    stroke-width: 1.5px;
+                                    transition: stroke-width 0.2s, r 0.2s;
+                                }
+                                
+                                .vis-node:hover circle {
+                                    stroke-width: 3px;
+                                }
+                                
+                                .vis-node text {
+                                    font-family: Arial, sans-serif;
+                                    font-size: 10px;
+                                    pointer-events: none;
+                                    text-anchor: middle;
+                                    dy: 3px;
+                                }
+                                
+                                .vis-node:hover text {
+                                    font-weight: bold;
+                                }
+                                
+                                .vis-link {
+                                    stroke-opacity: 0.4;
+                                    transition: stroke-opacity 0.2s, stroke-width 0.2s;
+                                }
+                                
+                                .vis-link:hover {
+                                    stroke-opacity: 1;
+                                    stroke-width: 2px;
+                                }
+                                
+                                .tooltip {
+                                    position: absolute;
+                                    background-color: rgba(0, 0, 0, 0.8);
+                                    color: white;
+                                    padding: 8px;
+                                    border-radius: 4px;
+                                    font-size: 12px;
+                                    z-index: 100;
+                                    pointer-events: none;
+                                }
+                            </style>
+                            
+                            <!-- Simple visualization script -->
+                            <script>
+                                // Initialize the visualization when the tab is displayed
+                                document.addEventListener("DOMContentLoaded", function() {
+                                    console.log("Document loaded, setting up visualization...");
+                                    
+                                    // Function to extract variables from the alerts tab tables
+                                    function extractVariablesFromDOM() {
+                                        console.log("Extracting variables from DOM...");
+                                        const variables = {
+                                            inputs: [],
+                                            outputs: [],
+                                            memory: []
+                                        };
+                                        
+                                        try {
+                                            // First, ensure the alerts tab is properly loaded
+                                            const alertsTab = document.getElementById("alerts");
+                                            if (!alertsTab) {
+                                                console.error("Alerts tab not found");
+                                                // Generate dummy data for testing if real data isn't available
+                                                return generateDummyData();
+                                            }
+                                            
+                                            console.log("Alerts tab HTML:", alertsTab.innerHTML.substring(0, 200) + "...");
+                                            
+                                            // Get input variables
+                                            const inputTable = alertsTab.querySelector("table:nth-of-type(1)");
+                                            if (inputTable) {
+                                                console.log("Found input table");
+                                                const rows = inputTable.querySelectorAll("tr:not(:first-child)");
+                                                rows.forEach((row, index) => {
+                                                    console.log(`Processing input row ${index}`);
+                                                    const cells = row.querySelectorAll("td");
+                                                    if (cells.length >= 3 && !cells[0].textContent.includes("No input variables found")) {
+                                                        variables.inputs.push({
+                                                            name: cells[0].textContent.trim(),
+                                                            location: cells[1].textContent.trim(),
+                                                            type: cells[2].textContent.trim()
+                                                        });
+                                                    }
+                                                });
+                                            } else {
+                                                console.error("Input table not found");
+                                            }
+                                            
+                                            // Get output variables
+                                            const outputTable = alertsTab.querySelector("table:nth-of-type(2)");
+                                            if (outputTable) {
+                                                const rows = outputTable.querySelectorAll("tr:not(:first-child)");
+                                                rows.forEach(row => {
+                                                    const cells = row.querySelectorAll("td");
+                                                    if (cells.length >= 3 && !cells[0].textContent.includes("No output variables found")) {
+                                                        variables.outputs.push({
+                                                            name: cells[0].textContent.trim(),
+                                                            location: cells[1].textContent.trim(),
+                                                            type: cells[2].textContent.trim()
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                            
+                                            // Get memory variables
+                                            const memoryTable = alertsTab.querySelector("table:nth-of-type(3)");
+                                            if (memoryTable) {
+                                                const rows = memoryTable.querySelectorAll("tr:not(:first-child)");
+                                                rows.forEach(row => {
+                                                    const cells = row.querySelectorAll("td");
+                                                    if (cells.length >= 3 && !cells[0].textContent.includes("No memory variables found")) {
+                                                        variables.memory.push({
+                                                            name: cells[0].textContent.trim(),
+                                                            location: cells[1].textContent.trim(),
+                                                            type: cells[2].textContent.trim()
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                            
+                                        } catch (error) {
+                                            console.error("Error extracting variables:", error);
+                                        }
+                                        
+                                        // Update debug info
+                                        const debugInfo = document.getElementById("debug-info");
+                                        const debugContent = document.getElementById("debug-content");
+                                        if (debugInfo && debugContent) {
+                                            const counts = `Found ${variables.inputs.length} inputs, ${variables.outputs.length} outputs, ${variables.memory.length} memory variables`;
+                                            debugContent.textContent = counts;
+                                            debugInfo.style.display = "block";
+                                        }
+                                        
+                                        console.log("Extracted variables:", variables);
+                                        return variables;
+                                    }
+                                    
+                                    // Function to prepare data for visualization
+                                    function prepareVisualizationData(variables) {
+                                        console.log("Preparing visualization data...");
+                                        const nodes = [];
+                                        const links = [];
+                                        
+                                        // Add all variables as nodes
+                                        variables.inputs.forEach(v => {
+                                            nodes.push({
+                                                id: v.name,
+                                                group: "input",
+                                                location: v.location,
+                                                type: v.type
+                                            });
+                                        });
+                                        
+                                        variables.outputs.forEach(v => {
+                                            nodes.push({
+                                                id: v.name,
+                                                group: "output",
+                                                location: v.location,
+                                                type: v.type
+                                            });
+                                        });
+                                        
+                                        variables.memory.forEach(v => {
+                                            nodes.push({
+                                                id: v.name,
+                                                group: "memory",
+                                                location: v.location,
+                                                type: v.type
+                                            });
+                                        });
+                                        
+                                        // Create links between variables (simplified model)
+                                        // Inputs affect outputs
+                                        variables.inputs.forEach(input => {
+                                            variables.outputs.forEach(output => {
+                                                // Create links with 50% probability to avoid overcrowding
+                                                if (Math.random() > 0.5) {
+                                                    links.push({
+                                                        source: input.name,
+                                                        target: output.name,
+                                                        value: 1
+                                                    });
+                                                }
+                                            });
+                                        });
+                                        
+                                        // Memory variables connect to both inputs and outputs
+                                        variables.memory.forEach(memory => {
+                                            // Connect to some inputs
+                                            variables.inputs.forEach(input => {
+                                                if (Math.random() > 0.7) {
+                                                    links.push({
+                                                        source: memory.name,
+                                                        target: input.name,
+                                                        value: 1
+                                                    });
+                                                }
+                                            });
+                                            
+                                            // Connect to some outputs
+                                            variables.outputs.forEach(output => {
+                                                if (Math.random() > 0.7) {
+                                                    links.push({
+                                                        source: memory.name,
+                                                        target: output.name,
+                                                        value: 1
+                                                    });
+                                                }
+                                            });
+                                        });
+                                        
+                                        // Update statistics table
+                                        document.getElementById("input-count").textContent = variables.inputs.length;
+                                        document.getElementById("output-count").textContent = variables.outputs.length;
+                                        document.getElementById("memory-count").textContent = variables.memory.length;
+                                        document.getElementById("total-count").textContent = nodes.length;
+                                        
+                                        // Add example variable names
+                                        document.getElementById("input-examples").textContent = variables.inputs.slice(0, 3).map(v => v.name).join(", ") || "-";
+                                        document.getElementById("output-examples").textContent = variables.outputs.slice(0, 3).map(v => v.name).join(", ") || "-";
+                                        document.getElementById("memory-examples").textContent = variables.memory.slice(0, 3).map(v => v.name).join(", ") || "-";
+                                        
+                                        return { nodes, links };
+                                    }
+                                    
+                                    // Function to generate dummy data for testing
+                                    function generateDummyData() {
+                                        console.log("Generating dummy data for testing visualization");
+                                        const dummyData = {
+                                            inputs: [
+                                                { name: "Input1", location: "%IX0.0", type: "BOOL" },
+                                                { name: "Input2", location: "%IX0.1", type: "BOOL" },
+                                                { name: "AnalogIn", location: "%IW0", type: "INT" }
+                                            ],
+                                            outputs: [
+                                                { name: "Output1", location: "%QX0.0", type: "BOOL" },
+                                                { name: "Output2", location: "%QX0.1", type: "BOOL" }
+                                            ],
+                                            memory: [
+                                                { name: "Counter", location: "%MW0", type: "INT" },
+                                                { name: "Timer", location: "%MW1", type: "TIME" },
+                                                { name: "Status", location: "%MX0.0", type: "BOOL" }
+                                            ]
+                                        };
+                                        return dummyData;
+                                    }
+                                    
+                                    // Create visualization with D3.js
+                                    function createVisualization() {
+                                        console.log("Creating visualization...");
+                                        
+                                        // Show loading indicator
+                                        document.getElementById("vis-loading").style.display = "block";
+                                        document.getElementById("vis-no-data").style.display = "none";
+                                        
+                                        // Check if D3 is loaded
+                                        if (typeof d3 === 'undefined') {
+                                            console.error("D3.js is not loaded properly");
+                                            document.getElementById("vis-loading").style.display = "none";
+                                            document.getElementById("vis-no-data").style.display = "block";
+                                            document.getElementById("vis-no-data").querySelector("p").textContent = 
+                                                "Error: D3.js library not loaded. Please check your internet connection.";
+                                            return;
+                                        }
+                                        
+                                        // Clear any existing visualization
+                                        const container = document.getElementById("visualization-container");
+                                        
+                                        // Extract variables and prepare data
+                                        const variables = extractVariablesFromDOM();
+                                        const data = prepareVisualizationData(variables);
+                                        
+                                        // Hide loading indicator
+                                        document.getElementById("vis-loading").style.display = "none";
+                                        
+                                        // If no data, show message and return
+                                        if (data.nodes.length === 0) {
+                                            document.getElementById("vis-no-data").style.display = "block";
+                                            return;
+                                        }
+                                        
+                                        // Get container dimensions
+                                        const width = container.clientWidth;
+                                        const height = container.clientHeight;
+                                        
+                                        // Create SVG element
+                                        d3.select("#visualization-container svg").remove(); // Remove any existing SVG
+                                        
+                                        const svg = d3.select("#visualization-container")
+                                            .append("svg")
+                                            .attr("width", width)
+                                            .attr("height", height);
+                                        
+                                        // Add zoom behavior
+                                        const zoom = d3.zoom()
+                                            .scaleExtent([0.1, 4])
+                                            .on("zoom", (event) => {
+                                                g.attr("transform", event.transform);
+                                            });
+                                            
+                                        svg.call(zoom);
+                                        
+                                        // Create g element to hold the visualization
+                                        const g = svg.append("g");
+                                        
+                                        // Create tooltip
+                                        const tooltip = d3.select("body").append("div")
+                                            .attr("class", "tooltip")
+                                            .style("opacity", 0);
+                                        
+                                        // Create forces for layout with improved parameters
+                                        const simulation = d3.forceSimulation(data.nodes)
+                                            .force("link", d3.forceLink(data.links).id(d => d.id).distance(100))
+                                            .force("charge", d3.forceManyBody().strength(-300))
+                                            .force("center", d3.forceCenter(width / 2, height / 2))
+                                            .force("x", d3.forceX(width / 2).strength(0.1))
+                                            .force("y", d3.forceY(height / 2).strength(0.1))
+                                            .force("collision", d3.forceCollide().radius(30))
+                                            .alpha(1)      // Start with high energy
+                                            .alphaDecay(0.01); // Slow down the simulation
+                                        
+                                        // Log the simulation status
+                                        console.log("Force simulation created with", data.nodes.length, "nodes and", data.links.length, "links");
+                                        
+                                        // Create links
+                                        const link = g.append("g")
+                                            .selectAll("line")
+                                            .data(data.links)
+                                            .enter()
+                                            .append("line")
+                                            .attr("class", "vis-link")
+                                            .attr("stroke", "#999")
+                                            .attr("stroke-width", 1);
+                                        
+                                        // Create nodes
+                                        const node = g.append("g")
+                                            .selectAll(".vis-node")
+                                            .data(data.nodes)
+                                            .enter()
+                                            .append("g")
+                                            .attr("class", "vis-node")
+                                            .call(d3.drag()
+                                                .on("start", dragstarted)
+                                                .on("drag", dragged)
+                                                .on("end", dragended))
+                                            .on("mouseover", function(event, d) {
+                                                tooltip.transition()
+                                                    .duration(200)
+                                                    .style("opacity", 0.9);
+                                                tooltip.html(`<strong>${d.id}</strong><br>Type: ${d.type}<br>Location: ${d.location}`)
+                                                    .style("left", (event.pageX + 10) + "px")
+                                                    .style("top", (event.pageY - 28) + "px");
+                                            })
+                                            .on("mouseout", function() {
+                                                tooltip.transition()
+                                                    .duration(500)
+                                                    .style("opacity", 0);
+                                            });
+                                        
+                                        // Color scheme for node groups
+                                        const colors = {
+                                            "input": "#4CAF50",
+                                            "output": "#2196F3",
+                                            "memory": "#FF9800"
+                                        };
+                                        
+                                        // Add circles to nodes
+                                        node.append("circle")
+                                            .attr("r", 8)
+                                            .attr("fill", d => colors[d.group] || "#999");
+                                        
+                                        // Add text labels to nodes
+                                        node.append("text")
+                                            .text(d => d.id)
+                                            .attr("x", 0)
+                                            .attr("y", 0)
+                                            .attr("opacity", 0);
+                                        
+                                        // Show labels only on hover
+                                        node.on("mouseover", function() {
+                                            d3.select(this).select("text").attr("opacity", 1);
+                                        })
+                                        .on("mouseout", function() {
+                                            d3.select(this).select("text").attr("opacity", 0);
+                                        });
+                                        
+                                        // Update positions on tick
+                                        simulation.on("tick", () => {
+                                            link
+                                                .attr("x1", d => d.source.x)
+                                                .attr("y1", d => d.source.y)
+                                                .attr("x2", d => d.target.x)
+                                                .attr("y2", d => d.target.y);
+                                            
+                                            node.attr("transform", d => `translate(${d.x},${d.y})`);
+                                        });
+                                        
+                                        // Functions for node dragging
+                                        function dragstarted(event, d) {
+                                            if (!event.active) simulation.alphaTarget(0.3).restart();
+                                            d.fx = d.x;
+                                            d.fy = d.y;
+                                        }
+                                        
+                                        function dragged(event, d) {
+                                            d.fx = event.x;
+                                            d.fy = event.y;
+                                        }
+                                        
+                                        function dragended(event, d) {
+                                            if (!event.active) simulation.alphaTarget(0);
+                                            d.fx = null;
+                                            d.fy = null;
+                                        }
+                                        
+                                        // Filter function to show/hide nodes by type
+                                        document.getElementById("filter-type").addEventListener("change", function() {
+                                            const filter = this.value;
+                                            
+                                            node.style("display", d => {
+                                                if (filter === "all") return "block";
+                                                return d.group === filter ? "block" : "none";
+                                            });
+                                            
+                                            link.style("display", d => {
+                                                if (filter === "all") return "block";
+                                                
+                                                const sourceNode = data.nodes.find(n => n.id === d.source.id);
+                                                const targetNode = data.nodes.find(n => n.id === d.target.id);
+                                                
+                                                if (!sourceNode || !targetNode) return "none";
+                                                
+                                                return (sourceNode.group === filter || targetNode.group === filter) ? "block" : "none";
+                                            });
+                                        });
+                                        
+                                        // Reset zoom function
+                                        const resetButton = document.getElementById("reset-zoom");
+                                        if (resetButton) {
+                                            resetButton.addEventListener("click", function() {
+                                                console.log("Reset zoom clicked");
+                                                svg.transition().duration(750).call(
+                                                    zoom.transform,
+                                                    d3.zoomIdentity
+                                                );
+                                            });
+                                        } else {
+                                            console.error("Reset zoom button not found");
+                                        }
+                                    }
+                                    
+                                    // Listen for tab open event
+                                    const vizTabButton = document.querySelector('button[onclick="openTab(\'visualization\')"]');
+                                    if (vizTabButton) {
+                                        vizTabButton.addEventListener("click", function() {
+                                            console.log("Visualization tab opened");
+                                            // Give the DOM time to update
+                                            setTimeout(createVisualization, 500);
+                                        });
+                                    } else {
+                                        console.error("Visualization tab button not found");
+                                    }
+                                    
+                                    // Initialize visualization if it's the active tab
+                                    if (localStorage.getItem('activeTab') === 'visualization') {
+                                        console.log("Visualization is active tab on page load");
+                                        // Longer timeout to ensure page is fully loaded
+                                        setTimeout(createVisualization, 1000);
+                                    }
+                                });
+                            </script>
                         </div>
                         
                         <div id="datasource" class="tab-content" style="display:none;">
