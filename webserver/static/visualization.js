@@ -6,6 +6,7 @@ console.log("Visualization script loaded");
 // Initialize global variables
 let svg, simulation, link, node;
 let tooltip;
+let showArrows = false;
 
 // Color scheme for nodes
 const colors = {
@@ -157,7 +158,8 @@ function prepareVisualizationData(variables) {
             name: v.name,
             group: "input",
             location: v.location,
-            type: v.type
+            type: v.type,
+            writable: false
         });
     });
     
@@ -170,7 +172,8 @@ function prepareVisualizationData(variables) {
             name: v.name,
             group: "output",
             location: v.location,
-            type: v.type
+            type: v.type,
+            writable: true
         });
     });
     
@@ -183,29 +186,32 @@ function prepareVisualizationData(variables) {
             name: v.name,
             group: "memory",
             location: v.location,
-            type: v.type
+            type: v.type,
+            writable: true
         });
     });
     
-    // Create simple connections between variables
-    // Link inputs to outputs and memory
+    // Create directional connections between variables
+    // Input variables typically affect memory variables and outputs
     variables.inputs.forEach(input => {
         const sourceId = nodeMap.get(input.name);
         
-        // Link to outputs (at least one if available)
-        if (variables.outputs.length > 0) {
-            const targetId = nodeMap.get(variables.outputs[0].name);
-            links.push({
-                source: sourceId,
-                target: targetId,
-                value: 1
-            });
-        }
-        
-        // Link to other outputs randomly
-        variables.outputs.slice(1).forEach(output => {
-            if (Math.random() > 0.7) {
+        // Connect inputs to outputs (showing that inputs affect outputs)
+        variables.outputs.forEach(output => {
+            if (Math.random() > 0.7) {  // Keep some randomness for demonstration
                 const targetId = nodeMap.get(output.name);
+                links.push({
+                    source: sourceId,
+                    target: targetId,
+                    value: 1
+                });
+            }
+        });
+        
+        // Connect inputs to memory variables (showing that inputs affect memory)
+        variables.memory.forEach(memory => {
+            if (Math.random() > 0.7) {
+                const targetId = nodeMap.get(memory.name);
                 links.push({
                     source: sourceId,
                     target: targetId,
@@ -215,14 +221,14 @@ function prepareVisualizationData(variables) {
         });
     });
     
-    // Link memory variables to both inputs and outputs
+    // Memory variables typically affect outputs
     variables.memory.forEach(memory => {
         const sourceId = nodeMap.get(memory.name);
         
-        // Connect to some inputs
-        variables.inputs.forEach(input => {
-            if (Math.random() > 0.8) {
-                const targetId = nodeMap.get(input.name);
+        // Connect memory to outputs (showing that memory affects outputs)
+        variables.outputs.forEach(output => {
+            if (Math.random() > 0.7) {
+                const targetId = nodeMap.get(output.name);
                 links.push({
                     source: sourceId,
                     target: targetId,
@@ -231,10 +237,10 @@ function prepareVisualizationData(variables) {
             }
         });
         
-        // Connect to some outputs
-        variables.outputs.forEach(output => {
-            if (Math.random() > 0.7) {
-                const targetId = nodeMap.get(output.name);
+        // Memory variables can also affect other memory variables
+        variables.memory.forEach(memory2 => {
+            if (memory.name !== memory2.name && Math.random() > 0.9) {
+                const targetId = nodeMap.get(memory2.name);
                 links.push({
                     source: sourceId,
                     target: targetId,
@@ -265,6 +271,20 @@ function updateStatistics(variables) {
         variables.outputs.slice(0, 3).map(v => v.name).join(", ") || "-";
     document.getElementById("memory-examples").textContent = 
         variables.memory.slice(0, 3).map(v => v.name).join(", ") || "-";
+}
+
+// Toggle arrow visibility
+function toggleArrows(show) {
+    showArrows = show;
+    if (!link) return;
+    
+    if (show) {
+        // Add arrowheads
+        link.attr("marker-end", "url(#arrowhead)");
+    } else {
+        // Remove arrowheads
+        link.attr("marker-end", null);
+    }
 }
 
 // Create and render the D3.js visualization
@@ -314,6 +334,94 @@ function createVisualization() {
             .attr("height", height)
             .attr("id", "visualization-svg");
         
+        // Define arrow markers for graph links
+        svg.append("defs").append("marker")
+            .attr("id", "arrowhead")
+            .attr("viewBox", "-0 -5 10 10")
+            .attr("refX", 25)
+            .attr("refY", 0)
+            .attr("orient", "auto")
+            .attr("markerWidth", 8)
+            .attr("markerHeight", 8)
+            .attr("xoverflow", "visible")
+            .append("svg:path")
+            .attr("d", "M 0,-5 L 10 ,0 L 0,5")
+            .attr("fill", "#999")
+            .style("stroke", "none");
+        
+        // Define patterns for writable variables
+        const defs = svg.append("defs");
+        
+        // Striped pattern for writable output variables with red net
+        defs.append("pattern")
+            .attr("id", "stripes-output")
+            .attr("patternUnits", "userSpaceOnUse")
+            .attr("width", 8)
+            .attr("height", 8)
+            .attr("patternTransform", "rotate(45)")
+            .append("rect")
+            .attr("width", 4)
+            .attr("height", 8)
+            .attr("transform", "translate(0,0)")
+            .attr("fill", colors.output);
+
+        // Red net pattern for output variables
+        defs.append("pattern")
+            .attr("id", "net-output")
+            .attr("patternUnits", "userSpaceOnUse")
+            .attr("width", 10)
+            .attr("height", 10);
+            
+        // Add background color to the output net pattern
+        defs.select("#net-output")
+            .append("rect")
+            .attr("width", 10)
+            .attr("height", 10)
+            .attr("fill", colors.output);
+            
+        // Add the crosshatch pattern
+        defs.select("#net-output")
+            .append("path")
+            .attr("d", "M0,0 L10,10 M10,0 L0,10")
+            .attr("stroke", "red")
+            .attr("stroke-width", 1)
+            .attr("fill", "none");
+
+        // Striped pattern for writable memory variables
+        defs.append("pattern")
+            .attr("id", "stripes-memory")
+            .attr("patternUnits", "userSpaceOnUse")
+            .attr("width", 8)
+            .attr("height", 8)
+            .attr("patternTransform", "rotate(45)")
+            .append("rect")
+            .attr("width", 4)
+            .attr("height", 8)
+            .attr("transform", "translate(0,0)")
+            .attr("fill", colors.memory);
+            
+        // Red net pattern for memory variables
+        defs.append("pattern")
+            .attr("id", "net-memory")
+            .attr("patternUnits", "userSpaceOnUse")
+            .attr("width", 10)
+            .attr("height", 10);
+            
+        // Add background color to the memory net pattern
+        defs.select("#net-memory")
+            .append("rect")
+            .attr("width", 10)
+            .attr("height", 10)
+            .attr("fill", colors.memory);
+            
+        // Add the crosshatch pattern
+        defs.select("#net-memory")
+            .append("path")
+            .attr("d", "M0,0 L10,10 M10,0 L0,10")
+            .attr("stroke", "red")
+            .attr("stroke-width", 1)
+            .attr("fill", "none");
+        
         // Add zoom behavior
         const zoom = d3.zoom()
             .scaleExtent([0.1, 4])
@@ -352,7 +460,12 @@ function createVisualization() {
             .attr("stroke", "#999")
             .attr("stroke-width", 1);
         
-        // Create nodes
+        // Apply arrowheads if showArrows is true
+        if (showArrows) {
+            link.attr("marker-end", "url(#arrowhead)");
+        }
+        
+        // Create node groups
         node = g.append("g")
             .attr("class", "nodes")
             .selectAll(".vis-node")
@@ -368,7 +481,7 @@ function createVisualization() {
                 tooltip.transition()
                     .duration(200)
                     .style("opacity", 0.9);
-                tooltip.html(`<strong>${d.name}</strong><br>Type: ${d.type}<br>Location: ${d.location}`)
+                tooltip.html(`<strong>${d.name}</strong><br>Type: ${d.type}<br>Location: ${d.location}<br>${d.writable ? '<span style="color:red">Writable</span>' : 'Read-only'}`)
                     .style("left", (event.pageX + 10) + "px")
                     .style("top", (event.pageY - 28) + "px");
                 
@@ -376,9 +489,10 @@ function createVisualization() {
                 d3.select(this).select("circle")
                     .transition()
                     .duration(200)
-                    .attr("r", 12);
+                    .attr("r", 12)
+                    .attr("stroke-width", d.writable ? 3 : 1.5);
             })
-            .on("mouseout", function() {
+            .on("mouseout", function(event, d) {
                 tooltip.transition()
                     .duration(500)
                     .style("opacity", 0);
@@ -387,13 +501,26 @@ function createVisualization() {
                 d3.select(this).select("circle")
                     .transition()
                     .duration(200)
-                    .attr("r", 8);
+                    .attr("r", 8)
+                    .attr("stroke-width", d.writable ? 2 : 1);
             });
         
-        // Add circles to nodes
+        // Add circles for nodes with special styling for writable variables
         node.append("circle")
             .attr("r", 8)
-            .attr("fill", d => colors[d.group] || "#999");
+            .attr("fill", function(d) {
+                if (d.writable) {
+                    // Use net patterns for writable variables
+                    if (d.group === "output") {
+                        return "url(#net-output)";
+                    } else if (d.group === "memory") {
+                        return "url(#net-memory)";
+                    }
+                }
+                return colors[d.group] || "#999";
+            })
+            .attr("stroke", d => d.writable ? "#FF0000" : "#FFFFFF")
+            .attr("stroke-width", d => d.writable ? 2 : 1);
         
         // Add text labels to nodes
         node.append("text")
@@ -412,11 +539,24 @@ function createVisualization() {
                 window.tickLogged = true;
             }
             
+            // Calculate endpoints for links to leave space for arrows
             link
                 .attr("x1", d => d.source.x)
                 .attr("y1", d => d.source.y)
-                .attr("x2", d => d.target.x)
-                .attr("y2", d => d.target.y);
+                .attr("x2", d => {
+                    const dx = d.target.x - d.source.x;
+                    const dy = d.target.y - d.source.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    // Shorten the line by 10 units (node radius + a bit of space)
+                    return dist === 0 ? d.target.x : d.source.x + dx * (dist - 12) / dist;
+                })
+                .attr("y2", d => {
+                    const dx = d.target.x - d.source.x;
+                    const dy = d.target.y - d.source.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    // Shorten the line by 10 units (node radius + a bit of space)
+                    return dist === 0 ? d.target.y : d.source.y + dy * (dist - 12) / dist;
+                });
             
             // Keep nodes within bounds
             node.attr("transform", d => {
@@ -464,8 +604,32 @@ function createVisualization() {
         // Set up filter dropdown
         const filterSelect = document.getElementById("filter-type");
         if (filterSelect) {
+            // Add "Variable Influence" option if it doesn't exist
+            if (!document.getElementById("show-arrows-option")) {
+                const arrowsOption = document.createElement("option");
+                arrowsOption.id = "show-arrows-option";
+                arrowsOption.value = "arrows";
+                arrowsOption.text = "Variable Influence";
+                filterSelect.appendChild(arrowsOption);
+            } else {
+                // Update existing option text
+                document.getElementById("show-arrows-option").text = "Variable Influence";
+            }
+            
             filterSelect.addEventListener("change", function() {
                 const filter = this.value;
+                
+                if (filter === "arrows") {
+                    // Toggle arrows on
+                    toggleArrows(true);
+                    // Keep all nodes visible
+                    node.style("display", "block");
+                    link.style("display", "block");
+                    return;
+                } else {
+                    // Toggle arrows off
+                    toggleArrows(false);
+                }
                 
                 node.style("display", d => {
                     if (filter === "all") return "block";
@@ -522,5 +686,6 @@ document.addEventListener("DOMContentLoaded", function() {
 window.vizDebug = {
     createVisualization,
     extractVariablesFromDOM,
-    generateDummyData
+    generateDummyData,
+    toggleArrows
 }; 
