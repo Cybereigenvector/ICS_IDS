@@ -1,4 +1,11 @@
-import sqlite3
+q
+q
+q
+[200~python3 ~/fix_indent.py
+q
+q
+q
+ sqlite3
 from sqlite3 import Error
 import os
 import subprocess
@@ -2073,9 +2080,8 @@ def intrusion_detection():
                             </div>
                             
                             <!-- Static Visualization -->
-                            <!-- Static Visualization -->
                             <div id="visualization-container" style="width: 100%; height: 600px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 5px; overflow: auto; position: relative;">"""
-
+                
                 # Generate a static visualization based on the variables from the selected ST file
                 if selected_st_file:
                     # Extract variables for visualization

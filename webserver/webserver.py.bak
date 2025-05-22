@@ -1807,6 +1807,9 @@ def intrusion_detection():
                         <!-- Include the external tab script -->
                         <script src="/static/tabs.js"></script>
                         
+                        <!-- Include debug script -->
+                        <script src="/static/debug.js"></script>
+                        
                         <!-- Add JavaScript to handle form submissions to preserve tab state -->
                         <script>
                             // Add event listener to all forms in the intrusion detection page
@@ -1822,1772 +1825,341 @@ def intrusion_detection():
                                         localStorage.setItem('activeTab', activeTab);
                                     });
                                 });
+                                
+                                // Add listener for ST file dropdown change
+                                var stFileDropdown = document.getElementById('st_file_selector');
+                                if (stFileDropdown) {
+                                    stFileDropdown.addEventListener('change', function() {
+                                        document.getElementById('select_st_form').submit();
+                                    });
+                                }
+                                
+                                // Add listener for ST file dropdown in visualization tab
+                                var visualizationStFileDropdown = document.getElementById('visualization_st_file_selector');
+                                if (visualizationStFileDropdown) {
+                                    visualizationStFileDropdown.addEventListener('change', function() {
+                                        document.getElementById('visualization_select_st_form').submit();
+                                    });
+                                }
                             });
                         </script>
                         
+                        <!-- Include D3.js for visualization -->
+                        <script src="https://d3js.org/d3.v7.min.js"></script>
+                        <!-- Include external visualization script -->
+                        <script src="/static/visualization.js"></script>
+                        <!-- Include visualization CSS -->
+                        <link rel="stylesheet" href="/static/visualization.css">
+                        
+                        <!-- Add console log to verify D3 loading -->
+                        <script>
+                            console.log("D3.js version:", d3 ? d3.version : "not loaded");
+                        </script>
+                        
                         <div class="tab-container">
-                            <button class="tab-button" onclick="openTab('visualization')">Program Visualization</button>
+                            <button class="tab-button" onclick="openTab('alerts')">Logic Variables</button>
+                            <button class="tab-button" onclick="openTab('visualization')">Visualization</button>
                             <button class="tab-button" onclick="openTab('datasource')">PCAP Capture</button>
                             <button class="tab-button" onclick="openTab('pv_capture')">Process Data and PLC Statistics</button>
                             <button class="tab-button" onclick="openTab('settings')">Settings</button>
                             <button class="tab-button" onclick="openTab('log')">Log</button>
                         </div>
                         
-                        <div id="visualization" class="tab-content" style="display:none;">
-                            <h3>PLC Program Flow Visualization</h3>
-                            <p>Visual representation of the currently running program structure and data flow:</p>
+                        <div id="alerts" class="tab-content" style="display:none;">
+                            <h3>PLC Logic Variables</h3>
                             
-                            <div id="program-info" style="margin-bottom:20px; padding:10px; background-color:#f5f5f5; border:1px solid #ddd; border-radius:4px;">
-                            """
+                            <!-- ST File Selection Form -->
+                            <form id="select_st_form" method="POST" action="/intrusion_detection">
+                                <div style="margin-bottom: 20px; background-color: #f5f5f5; padding: 15px; border-radius: 5px; border-left: 4px solid #333;">
+                                    <label for="st_file_selector" style="font-weight: bold; margin-right: 10px;">Select ST File:</label>
+                                    <select id="st_file_selector" name="selected_st_file" style="padding: 5px; border-radius: 3px; border: 1px solid #ccc; min-width: 200px;">"""
         
-        # Get current running program information
-        try:
-            database = "openplc.db"
-            conn = create_connection(database)
-            current_program_name = "No program loaded"
-            current_program_file = ""
-            
-            if conn is not None:
-                try:
-                    cur = conn.cursor()
-                    # Get the most recently compiled program
-                    cur.execute("SELECT Name, File FROM Programs ORDER BY Date_upload DESC LIMIT 1")
-                    row = cur.fetchone()
-                    if row:
-                        current_program_name = row[0]
-                        current_program_file = row[1]
-                    cur.close()
-                    conn.close()
-                except Error as e:
-                    print(f"Database error: {e}")
-            
-            return_str += f"""
-                                <p><strong>Current Program:</strong> {current_program_name}</p>
-                                <p><strong>File:</strong> {current_program_file}</p>
-                            """
-            
-            # If we have a current program file, try to read and visualize it
-            if current_program_file:
-                import os
-                st_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'st_files', current_program_file)
+        # Get list of ST files in the st_files directory
+        import os
+        st_files_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'st_files')
+        st_files = [f for f in os.listdir(st_files_dir) if f.endswith('.st') and not f.endswith('.dbg')]
+        
+        # Get currently selected file (either from form submission or default to the current runtime file)
+        selected_st_file = flask.request.form.get('selected_st_file', openplc_runtime.project_file if openplc_runtime.project_file else st_files[0] if st_files else '')
+        
+        # Add options to the dropdown
+        for st_file in st_files:
+            selected = ' selected' if st_file == selected_st_file else ''
+            return_str += f'<option value="{st_file}"{selected}>{st_file}</option>'
                 
-                if os.path.exists(st_file_path):
-                    # Read ST file and extract program structure
-                    with open(st_file_path, 'r') as f:
-                        st_content = f.read()
-                    
-                    # Extract program names and their relationships
-                    programs = []
-                    current_program = None
-                    program_vars = {}
-                    in_section = None  # Initialize in_section variable
-                    global_vars = []  # Store global variables
-                    in_configuration = False
-                    in_resource = False
-                    in_global = False
-                    
-                    for line in st_content.split('\n'):
-                        line = line.strip()
-                        
-                        # Skip empty lines or comments
-                        if not line or line.startswith("(*") or line.startswith("//"):
-                            continue
-                        
-                        # Handle CONFIGURATION section
-                        if line.startswith("CONFIGURATION "):
-                            in_configuration = True
-                            current_program = None
-                            in_section = None
-                        elif in_configuration and line.startswith("RESOURCE "):
-                            in_resource = True
-                            current_program = None
-                            in_section = None
-                        elif in_resource and line.startswith("VAR_GLOBAL"):
-                            in_global = True
-                            in_section = None
-                        elif in_global and line.startswith("END_VAR"):
-                            in_global = False
-                        elif in_resource and line.startswith("END_RESOURCE"):
-                            in_resource = False
-                        elif in_configuration and line.startswith("END_CONFIGURATION"):
-                            in_configuration = False
-                            
-                        # Process global variable declarations
-                        elif in_global and ":" in line:
-                            # Skip commented lines
-                            if "(*" in line and line.index("(*") < line.index(":"):
-                                continue
-                            if "//" in line and line.index("//") < line.index(":"):
-                                continue
-                                
-                            # Handle comments after variable declaration
-                            comment_start = line.find("(*")
-                            if comment_start > 0:
-                                line = line[:comment_start].strip()
-                                
-                            comment_start = line.find("//")
-                            if comment_start > 0:
-                                line = line[:comment_start].strip()
-                                
-                            # Extract variable name and type
-                            parts = line.split(":", 1)
-                            if len(parts) >= 2:
-                                var_name = parts[0].strip()
-                                var_type_part = parts[1].strip()
-                                
-                                # Remove semicolon if present
-                                if ";" in var_type_part:
-                                    var_type_part = var_type_part.split(";")[0].strip()
-                                
-                                # Handle AT locations (memory mappings)
-                                location = ""
-                                if " AT " in var_type_part or " at " in var_type_part:
-                                    var_type_loc = var_type_part.replace(" at ", " AT ").split(" AT ")
-                                    if len(var_type_loc) >= 2:
-                                        var_type_part = var_type_loc[0].strip()
-                                        location = var_type_loc[1].strip()
-                                
-                                # Handle initialization values
-                                init_value = ""
-                                if ":=" in var_type_part:
-                                    type_init = var_type_part.split(":=")
-                                    if len(type_init) >= 2:
-                                        var_type_part = type_init[0].strip()
-                                        init_value = type_init[1].strip()
-                                
-                                # Add global variable
-                                global_vars.append({
-                                    "name": var_name,
-                                    "type": var_type_part,
-                                    "location": location,
-                                    "init_value": init_value
-                                })
-                            
-                        # Handle program declarations
-                        elif line.startswith("PROGRAM "):
-                            current_program = line.split(" ")[1]
-                            programs.append(current_program)
-                            program_vars[current_program] = {"inputs": [], "outputs": [], "externals": [], "local": []}
-                            in_section = None  # Reset section when entering a new program
-                            
-                        # Detect variable sections
-                        elif current_program and (line.startswith("VAR_INPUT") or line == "  VAR_INPUT"):
-                            in_section = "inputs"
-                        elif current_program and (line.startswith("VAR_OUTPUT") or line == "  VAR_OUTPUT"):
-                            in_section = "outputs"
-                        elif current_program and (line.startswith("VAR_EXTERNAL") or line == "  VAR_EXTERNAL"):
-                            in_section = "externals"
-                        elif current_program and (line.startswith("VAR") or line == "  VAR"):
-                            in_section = "local"
-                        elif current_program and (line.startswith("END_VAR") or line == "  END_VAR"):
-                            in_section = None
-                            
-                        # Process variable declarations
-                        elif current_program and in_section and ":" in line:
-                            # Skip commented lines
-                            if "(*" in line and line.index("(*") < line.index(":"):
-                                continue
-                            if "//" in line and line.index("//") < line.index(":"):
-                                continue
-                                
-                            # Handle comments after variable declaration
-                            comment_start = line.find("(*")
-                            if comment_start > 0:
-                                line = line[:comment_start].strip()
-                                
-                            comment_start = line.find("//")
-                            if comment_start > 0:
-                                line = line[:comment_start].strip()
-                                
-                            # Extract variable name and type
-                            parts = line.split(":", 1)
-                            if len(parts) >= 2:
-                                var_name = parts[0].strip()
-                                var_type_part = parts[1].strip()
-                                
-                                # Remove semicolon if present
-                                if ";" in var_type_part:
-                                    var_type_part = var_type_part.split(";")[0].strip()
-                                
-                                # Handle AT locations (memory mappings)
-                                location = ""
-                                if " AT " in var_type_part or " at " in var_type_part:
-                                    var_type_loc = var_type_part.replace(" at ", " AT ").split(" AT ")
-                                    if len(var_type_loc) >= 2:
-                                        var_type_part = var_type_loc[0].strip()
-                                        location = var_type_loc[1].strip()
-                                
-                                # Add the variable to the appropriate section
-                                if in_section in program_vars[current_program]:
-                                    program_vars[current_program][in_section].append({
-                                        "name": var_name, 
-                                        "type": var_type_part,
-                                        "location": location
-                                    })
-                    
-                    # Create visualization HTML
-                    return_str += """
-                                <div style="margin-top:20px;">
-                                    <h4>Program Structure</h4>
-                                    <div class="program-visualization" style="margin-top:15px; padding:15px; border:1px solid #ddd; border-radius:4px; background-color:white;">
-                                        <style>
-                                            .tree-container {
-                                                font-family: 'Arial', sans-serif;
-                                                padding: 20px;
-                                                overflow: auto;
-                                            }
-                                            .tree {
-                                                margin: 0;
-                                                padding: 0;
-                                                list-style-type: none;
-                                            }
-                                            .tree-node {
-                                                margin: 10px 0;
-                                                position: relative;
-                                            }
-                                            .tree-node-content {
-                                                padding: 10px 15px;
-                                                background: #f8f9fa;
-                                                border: 1px solid #ddd;
-                                                border-radius: 5px;
-                                                display: inline-block;
-                                                cursor: pointer;
-                                                transition: all 0.2s;
-                                                min-width: 200px;
-                                            }
-                                            .tree-node-content:hover {
-                                                background: #e9ecef;
-                                                box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-                                            }
-                                            .tree-node-content.program {
-                                                background: #0066FC;
-                                                color: white;
-                                                border-color: #0052cc;
-                                            }
-                                            .tree-node-content.program:hover {
-                                                background: #0052cc;
-                                            }
-                                            .tree-node-content.task {
-                                                background: #28a745;
-                                                color: white;
-                                                border-color: #218838;
-                                            }
-                                            .tree-node-content.task:hover {
-                                                background: #218838;
-                                            }
-                                            .tree-node-content.variable {
-                                                background: #f8f9fa;
-                                                color: #333;
-                                            }
-                                            .tree-node-content.input {
-                                                border-left: 4px solid #17a2b8;
-                                            }
-                                            .tree-node-content.output {
-                                                border-left: 4px solid #dc3545;
-                                            }
-                                            .tree-node-content.external {
-                                                border-left: 4px solid #ffc107;
-                                            }
-                                            .tree-node-children {
-                                                margin-left: 30px;
-                                                position: relative;
-                                                display: none;
-                                            }
-                                            .tree-node-children:before {
-                                                content: "";
-                                                position: absolute;
-                                                left: -15px;
-                                                top: 0;
-                                                bottom: 0;
-                                                border-left: 1px dashed #ccc;
-                                            }
-                                            .tree-node-children .tree-node:before {
-                                                content: "";
-                                                position: absolute;
-                                                left: -15px;
-                                                top: 15px;
-                                                width: 15px;
-                                                border-top: 1px dashed #ccc;
-                                            }
-                                            .expanded > .tree-node-children {
-                                                display: block;
-                                            }
-                                            .tree-toggle {
-                                                margin-right: 5px;
-                                                display: inline-block;
-                                                width: 16px;
-                                                height: 16px;
-                                                text-align: center;
-                                                line-height: 16px;
-                                                background: rgba(0,0,0,0.1);
-                                                border-radius: 3px;
-                                                cursor: pointer;
-                                            }
-                                            .badge {
-                                                display: inline-block;
-                                                padding: 0.25em 0.4em;
-                                                font-size: 75%;
-                                                font-weight: 700;
-                                                line-height: 1;
-                                                text-align: center;
-                                                white-space: nowrap;
-                                                vertical-align: baseline;
-                                                border-radius: 0.25rem;
-                                                margin-left: 5px;
-                                            }
-                                            .badge-primary {
-                                                color: #fff;
-                                                background-color: #0066FC;
-                                            }
-                                            .badge-success {
-                                                color: #fff;
-                                                background-color: #28a745;
-                                            }
-                                            .badge-info {
-                                                color: #fff;
-                                                background-color: #17a2b8;
-                                            }
-                                            .badge-warning {
-                                                color: #212529;
-                                                background-color: #ffc107;
-                                            }
-                                            .badge-danger {
-                                                color: #fff;
-                                                background-color: #dc3545;
-                                            }
-                                        </style>
-                                        
-                                        <div class="tree-container">
-                                            <ul class="tree">
-                                                <li class="tree-node expanded">
-                                                    <div class="tree-node-content program">
-                                                        <span class="tree-toggle">-</span>
-                                                        <strong>Smart Manufacturing System (247768.st)</strong>
-                                                    </div>
-                                                    <ul class="tree-node-children">
-                    """
-                    
-                    # Configuration section
-                    return_str += """
-                                                        <li class="tree-node expanded">
-                                                            <div class="tree-node-content">
-                                                                <span class="tree-toggle">-</span>
-                                                                <strong>Configuration: Config0</strong>
-                                                            </div>
-                                                            <ul class="tree-node-children">
-                                                                <li class="tree-node expanded">
-                                                                    <div class="tree-node-content">
-                                                                        <span class="tree-toggle">-</span>
-                                                                        <strong>Resource: Res0 (PLC)</strong>
-                                                                    </div>
-                                                                    <ul class="tree-node-children">
-                                                                        <li class="tree-node expanded">
-                                                                            <div class="tree-node-content">
-                                                                                <span class="tree-toggle">-</span>
-                                                                                <strong>Global Variables</strong>
-                                                                            </div>
-                                                                            <ul class="tree-node-children">
-                    """
-                    
-                    # Display global variables from parsing
-                    if global_vars:
-                        for var in global_vars:
-                            var_name = var["name"]
-                            var_type = var["type"]
-                            var_location = var["location"]
-                            var_init = var["init_value"]
-                            
-                            # Format type and location for display
-                            type_display = f"<span style='color:#999;'>({var_type})</span>" if var_type else ""
-                            loc_display = f"<span style='color:#0066FC; font-size:0.9em;'> {var_location}</span>" if var_location else ""
-                            init_display = f"<span style='color:#28a745; font-size:0.9em;'> := {var_init}</span>" if var_init else ""
-                            
-                            return_str += f'<li class="tree-node"><div class="tree-node-content variable">{var_name} {type_display}{loc_display}{init_display}</div></li>'
-                    else:
-                        # Fallback if no global variables were found
-                        return_str += """
-                                                                                <li class="tree-node"><div class="tree-node-content variable">FactoryIORunning</div></li>
-                                                                                <li class="tree-node"><div class="tree-node-content variable">BasesCenterBusy/LidsCenterBusy</div></li>
-                                                                                <li class="tree-node"><div class="tree-node-content variable">Production Counters</div></li>
-                                                                                <li class="tree-node"><div class="tree-node-content variable">E-Stop Controls</div></li>
-                        """
-                    
-                    return_str += """
-                                                                            </ul>
-                                                                        </li>
-                                                                        <li class="tree-node expanded">
-                                                                            <div class="tree-node-content">
-                                                                                <span class="tree-toggle">-</span>
-                                                                                <strong>Tasks</strong>
-                                                                            </div>
-                                                                            <ul class="tree-node-children">
-                                                                                <li class="tree-node expanded">
-                                                                                    <div class="tree-node-content task">
-                                                                                        <span class="tree-toggle">-</span>
-                                                                                        <strong>Task0 (20ms)</strong>
-                                                                                    </div>
-                                                                                    <ul class="tree-node-children">
-                                                                                        <li class="tree-node"><div class="tree-node-content">Lids_Production</div></li>
-                                                                                        <li class="tree-node"><div class="tree-node-content">Assembly</div></li>
-                                                                                        <li class="tree-node"><div class="tree-node-content">Palletizer</div></li>
-                                                                                    </ul>
-                                                                                </li>
-                                                                                <li class="tree-node expanded">
-                                                                                    <div class="tree-node-content task">
-                                                                                        <span class="tree-toggle">-</span>
-                                                                                        <strong>Task1 (20ms)</strong>
-                                                                                    </div>
-                                                                                    <ul class="tree-node-children">
-                                                                                        <li class="tree-node"><div class="tree-node-content">Base_Production</div></li>
-                                                                                        <li class="tree-node"><div class="tree-node-content">Warehouse</div></li>
-                                                                                    </ul>
-                                                                                </li>
-                                                                            </ul>
-                                                                        </li>
-                                                                    </ul>
-                                                                </li>
-                                                            </ul>
-                                                        </li>
-                    """
-                else:
-                    return_str += """
-                                <div style="margin-top:20px; color:#F44336;">
-                                    <p>Program file not found. Please make sure a valid program is loaded.</p>
-                                </div>
-                    """
-            else:
-                return_str += """
-                                <div style="margin-top:20px; color:#F44336;">
-                                    <p>No program is currently loaded. Please upload and compile a program first.</p>
-                                </div>
-                """
-        except Exception as e:
-            return_str += f"""
-                                <div style="margin-top:20px; color:#F44336;">
-                                    <p>Error generating program visualization: {str(e)}</p>
-                                </div>
-            """
-        
         return_str += """
-                            </div>
-                        </div>
-                        
-                        <div id="datasource" class="tab-content" style="display:none;">
-                            <h3>Network Capture Configuration</h3>
-                            <p>Select the network interfaces to capture packets from:</p>
-                            
-                            <form action="/intrusion_detection" method="post" class="datasource-form">
-                                <div style="margin-bottom:20px;">
-                        """
-        
-        # Add network interfaces as checkboxes
-        for interface in network_interfaces:
-            checked = ""
-            if interface in active_interfaces:
-                checked = "checked"
-                
-            return_str += f"""
-                                    <div style="margin-bottom:10px;">
-                                        <input type="checkbox" id="{interface}" name="interfaces" value="{interface}" {checked}>
-                                        <label for="{interface}" style="display:inline-block; margin-left:10px; width:auto;">{interface}</label>
-                                    </div>
-            """
-            
-        return_str += """
-                                </div>
-                                <div>
-                                    <button type="submit" name="start_capture" value="start" class="button" style="background-color:#4CAF50; width:auto; padding:10px 20px; margin-right:15px;">Start Capture</button>
-                                    <button type="submit" name="stop_capture" value="stop" class="button" style="background-color:#F44336; width:auto; padding:10px 20px;">Stop Capture</button>
-                                </div>
-                            </form>
-                            
-                            <div style="margin-top:30px;">
-                                <h4>Capture Status</h4>
-                                <div class="detection-logs" style="height:150px;">
-                                    <div id="capture-status">
-                        """
-        
-        # Add capture status information
-        if is_capturing:
-            status_color = "color: #4CAF50; font-weight: bold;"  # Green for active
-            return_str += f"""<span style="{status_color}">ACTIVE CAPTURE</span><br>"""
-        else:
-            status_color = "color: #F44336; font-weight: bold;"  # Red for inactive
-            return_str += f"""<span style="{status_color}">NO ACTIVE CAPTURE</span><br>"""
-        
-        # Add detailed status info
-        status_lines = status_info.split('\n')
-        for line in status_lines:
-            return_str += f"{line}<br>"
-        
-        # Add information about tcpdump
-        if not packet_capture.is_tcpdump_installed():
-            return_str += """<br><span style="color: #F44336;">WARNING: tcpdump is not installed. Install it with: sudo apt-get install tcpdump</span>"""
-        
-        # Get capture files if any
-        capture_files = packet_capture.get_capture_files()
-        if capture_files:
-            return_str += """<br><h5 style="margin-top:15px;">Captured Files:</h5>"""
-            for idx, file in enumerate(capture_files[:5]):  # Show only the 5 most recent
-                return_str += f"""<div>{idx+1}. {file['interface']} ({file['mtime_pretty']}): {file['size_pretty']}</div>"""
-            if len(capture_files) > 5:
-                return_str += f"""<div>... and {len(capture_files) - 5} more files</div>"""
-        
-        return_str += """
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Available PCAP Files Table -->
-                            <div style="margin-top:30px;">
-                                <h4>Available PCAP Files</h4>
-                                <div style="margin-top:15px; overflow-x:auto;">
-                                    <table>
-                                        <tr>
-                                            <th>Interface</th>
-                                            <th>Capture Time</th>
-                                            <th>Size</th>
-                                            <th>Action</th>
-                                        </tr>
-                        """
-        
-        # Add rows for capture files
-        if capture_files:
-            for file in capture_files:
-                # Copy the file to the static directory for direct access
-                import shutil
-                import os
-                static_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'pcap_files')
-                if not os.path.exists(static_path):
-                    os.makedirs(static_path)
-                static_file = os.path.join(static_path, file['filename'])
-                shutil.copy2(file['path'], static_file)
-                os.chmod(static_file, 0o644)  # Make it readable by the web server
-                
-                # Use a direct link to the static file
-                return_str += f"""
-                                        <tr>
-                                            <td>{file['interface']}</td>
-                                            <td>{file['mtime_pretty']}</td>
-                                            <td>{file['size_pretty']}</td>
-                                            <td>
-                                                <a href="/static/pcap_files/{file['filename']}" download="{file['filename']}" target="_blank" class="button" style="background-color:#0066FC; width:auto; padding:5px 10px; text-decoration:none; font-size:14px; margin-right:5px;">Download</a>
-                                                <form method="post" action="/intrusion_detection" style="display:inline;" class="datasource-form">
-                                                    <input type="hidden" name="delete_file" value="{file['filename']}">
-                                                    <button type="submit" class="button" style="background-color:#F44336; width:auto; padding:5px 10px; text-decoration:none; font-size:14px; border:none; cursor:pointer;">Delete</button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                """
-        else:
-            return_str += """
-                                        <tr>
-                                            <td colspan="4" style="text-align:center;">No capture files available</td>
-                                        </tr>
-                """
-        
-        return_str += """
-                                    </table>
-                                </div>
-                                <div style="margin-top:15px;">
-                                    <p><b>Note:</b> PCAP files can be analyzed using tools like Wireshark or tcpdump.</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div id="pv_capture" class="tab-content" style="display:none;">
-                            <h3>Process Data and PLC Statistics Configuration</h3>
-                            <p>Monitor and capture process variables and system statistics for intrusion detection analysis:</p>
-                            
-                            <div style="margin-bottom:20px; padding:10px; background-color:#f5f5f5; border:1px solid #ddd; border-radius:4px;">
-                                <p><strong>Captured Statistics:</strong></p>
-                                <ul style="margin-top:5px; padding-left:20px;">
-                                    <li><strong>CPU Metrics:</strong> CPU Load %, CPU Idle %</li>
-                                    <li><strong>Memory Metrics:</strong> Total RAM, Used RAM, Free RAM, Heap Fragmentation %</li>
-                                    <li><strong>Storage Metrics:</strong> Disk Total GB, Disk Used GB, Disk Free GB</li>
-                                    <li><strong>System Health:</strong> ISR Overruns, SD Writes, SD I/O Time (ms)</li>
-                                    <li><strong>PLC Variables:</strong> All PLC variables from the monitoring page</li>
-                                </ul>
-                                <p><em>Note: Capture will work even if the PLC is not running, but only system metrics will be available.</em></p>
-                            </div>
-                            
-                            <form action="/intrusion_detection" method="post" class="datasource-form">
-                                <div style="margin-bottom:20px;">
-                                    <label for="sample_rate">Sample Rate (ms):</label>
-                                    <select id="sample_rate" name="sample_rate" style="width:100px; margin-left:10px;">
-                                        <option value="10">10</option>
-                                        <option value="50">50</option>
-                                        <option value="100">100</option>
-                                        <option value="500" selected>500</option>
-                                        <option value="1000">1000</option>
-                                        <option value="5000">5000</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <button type="submit" name="start_pv_capture" value="start" class="button" style="background-color:#4CAF50; width:auto; padding:10px 20px; margin-right:15px;">Start Data Capture</button>
-                                    <button type="submit" name="stop_pv_capture" value="stop" class="button" style="background-color:#F44336; width:auto; padding:10px 20px;">Stop Data Capture</button>
-                                </div>
                             </form>
                             
-                            <div style="margin-top:30px;">
-                                <h4>Capture Status</h4>
-                                <div class="detection-logs" style="height:150px;">
-                                    <div id="pv-capture-status">"""
+                            <p>Structured overview of the PLC variables from the selected program:</p>
+                            
+                            <div style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px;">"""
         
-        # Add PV capture status information
-        if is_pv_capturing:
-            status_color = "color: #4CAF50; font-weight: bold;"  # Green for active
-            return_str += f"""<span style="{status_color}">ACTIVE DATA CAPTURE</span><br>"""
+        # Parse the selected ST file to extract variables
+        monitor.cleanup()  # Clear previous variables
+        if selected_st_file:
+            try:
+                monitor.parse_st(selected_st_file)
+                
+                # Group variables by type
+                input_vars = []
+                output_vars = []
+                memory_vars = []
+                
+                for var in monitor.debug_vars:
+                    if var.location.startswith('%I'):
+                        input_vars.append(var)
+                    elif var.location.startswith('%Q'):
+                        output_vars.append(var)
+                    elif var.location.startswith('%M'):
+                        memory_vars.append(var)
+                    elif var.location == "EXTERNAL":  # External variables are categorized as memory variables
+                        memory_vars.append(var)
+                    else:
+                        # For any other variables that don't fit the above categories
+                        memory_vars.append(var)
+                
+                # Input Variables Section
+                return_str += """
+                                <!-- Input Variables Section -->
+                                <div style="flex: 1; min-width: 300px; background-color: #f5f5f5; border-radius: 5px; padding: 15px; border-left: 4px solid #4CAF50;">
+                                    <h4 style="margin-top: 0; color: #2E7D32;">Input Variables (I)</h4>
+                                    <div style="max-height: 400px; overflow-y: auto;">
+                                        <table style="width: 100%; border-collapse: collapse;">
+                                            <tr style="background-color: #e0e0e0;">
+                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Variable</th>
+                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Address</th>
+                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Type</th>
+                                            </tr>"""
+                
+                if input_vars:
+                    for var in input_vars:
+                        return_str += f"""
+                                            <tr>
+                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.name}</td>
+                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.location}</td>
+                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.type}</td>
+                                            </tr>"""
+                else:
+                    return_str += """
+                                            <tr>
+                                                <td colspan="3" style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">No input variables found</td>
+                                            </tr>"""
+                
+                return_str += """
+                                        </table>
+                                    </div>
+                                </div>
+                                
+                                <!-- Output Variables Section -->
+                                <div style="flex: 1; min-width: 300px; background-color: #f5f5f5; border-radius: 5px; padding: 15px; border-left: 4px solid #2196F3;">
+                                    <h4 style="margin-top: 0; color: #1565C0;">Output Variables (Q)</h4>
+                                    <div style="max-height: 400px; overflow-y: auto;">
+                                        <table style="width: 100%; border-collapse: collapse;">
+                                            <tr style="background-color: #e0e0e0;">
+                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Variable</th>
+                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Address</th>
+                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Type</th>
+                                            </tr>"""
+                
+                if output_vars:
+                    for var in output_vars:
+                        return_str += f"""
+                                            <tr>
+                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.name}</td>
+                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.location}</td>
+                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.type}</td>
+                                            </tr>"""
+                else:
+                    return_str += """
+                                            <tr>
+                                                <td colspan="3" style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">No output variables found</td>
+                                            </tr>"""
+                
+                return_str += """
+                                        </table>
+                                    </div>
+                                </div>
+                                
+                                <!-- Memory Variables Section -->
+                                <div style="flex: 1; min-width: 300px; background-color: #f5f5f5; border-radius: 5px; padding: 15px; border-left: 4px solid #FF9800;">
+                                    <h4 style="margin-top: 0; color: #E65100;">Memory Variables (M)</h4>
+                                    <div style="max-height: 400px; overflow-y: auto;">
+                                        <table style="width: 100%; border-collapse: collapse;">
+                                            <tr style="background-color: #e0e0e0;">
+                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Variable</th>
+                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Address</th>
+                                                <th style="padding: 8px; text-align: left; border-bottom: 1px solid #ddd;">Type</th>
+                                            </tr>"""
+                
+                if memory_vars:
+                    for var in memory_vars:
+                        return_str += f"""
+                                            <tr>
+                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.name}</td>
+                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.location}</td>
+                                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">{var.type}</td>
+                                            </tr>"""
+                else:
+                    return_str += """
+                                            <tr>
+                                                <td colspan="3" style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">No memory variables found</td>
+                                            </tr>"""
+                
+                return_str += """
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>"""
+                
+                # Add Program Structure section
+                st_file_path = os.path.join(st_files_dir, selected_st_file)
+                
+                with open(st_file_path, 'r') as f:
+                    content = f.read()
+                    
+                return_str += """
+                        <div style="margin-top: 30px;">
+                            <h3>Program Structure</h3>
+                            <div style="background-color: #f5f5f5; border-radius: 5px; padding: 15px;">
+                                <pre style="white-space: pre-wrap; font-family: monospace; font-size: 12px; overflow-x: auto; max-height: 500px; overflow-y: auto;">""" + content + """</pre>
+                            </div>
+                        </div>"""
+                
+            except Exception as e:
+                return_str += f"""
+                        <div style="color: red; padding: 15px; background-color: #ffebee; border-radius: 5px; margin-bottom: 20px;">
+                            <h4>Error parsing ST file</h4>
+                            <p>{str(e)}</p>
+                        </div>"""
         else:
-            status_color = "color: #F44336; font-weight: bold;"  # Red for inactive
-            return_str += f"""<span style="{status_color}">NO ACTIVE DATA CAPTURE</span><br>"""
-        
-        # Add PV status info
-        return_str += f"{pv_status_info}<br>"
-        
+            return_str += """
+                            <div style="color: #856404; padding: 15px; background-color: #fff3cd; border-radius: 5px; margin-bottom: 20px;">
+                                <h4>No ST file selected</h4>
+                                <p>Please select an ST file from the dropdown above to view its variables.</p>
+                            </div>"""
+                
         return_str += """
+                        </div>
+                        
+                        <div id="visualization" class="tab-content">
+                            <div id="visualization-controls">
+                                <div>
+                                    <button id="reset-view" class="btn btn-primary btn-sm">Reset View</button>
+                                </div>
+                                <div>
+                                    <small>Drag nodes to reposition | Scroll to zoom | Click node for details</small>
+                                </div>
+                            </div>
+                            <div id="visualization-graph"></div>
+                            <div class="stats-section">
+                                <div class="stats-title">PLC Variables Statistics</div>
+                                <div class="stats-container">
+                                    <div class="stat-item">
+                                        <div class="stat-count" id="input-count">0</div>
+                                        <div class="stat-label">Input Variables</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-count" id="output-count">0</div>
+                                        <div class="stat-label">Output Variables</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-count" id="memory-count">0</div>
+                                        <div class="stat-label">Memory Variables</div>
                                     </div>
                                 </div>
                             </div>
-                            
-                            <!-- Available PV Capture Files Table -->
-                            <div style="margin-top:30px;">
-                                <h4>Available Capture Files</h4>
-                                <div style="margin-top:15px; overflow-x:auto;">
-                                    <table>
-                                        <tr>
-                                            <th>Filename</th>
-                                            <th>Capture Time</th>
-                                            <th>Size</th>
-                                            <th>Action</th>
-                                        </tr>"""
-        
-        # Add rows for PV capture files
-        if pv_files:
-            for file in pv_files:
-                # Create a static file link
-                static_url = f"/static/pv_files/{file['filename']}"
-                
-                return_str += f"""
-                                        <tr>
-                                            <td>{file['filename']}</td>
-                                            <td>{file['mtime_pretty']}</td>
-                                            <td>{file['size_pretty']}</td>
-                                            <td>
-                                                <a href="{static_url}" download="{file['filename']}" target="_blank" class="button" style="background-color:#0066FC; width:auto; padding:5px 10px; text-decoration:none; font-size:14px; margin-right:5px;">Download</a>
-                                                <form method="post" action="/intrusion_detection" style="display:inline;" class="datasource-form">
-                                                    <input type="hidden" name="delete_pv_file" value="{file['filename']}">
-                                                    <button type="submit" class="button" style="background-color:#F44336; width:auto; padding:5px 10px; text-decoration:none; font-size:14px; border:none; cursor:pointer;">Delete</button>
-                                                </form>
-                                            </td>
-                                        </tr>
-                """
-        else:
-            return_str += """
-                                        <tr>
-                                            <td colspan="4" style="text-align:center;">No capture files available</td>
-                                        </tr>
-                """
-        
-        return_str += """
-                                    </table>
-                                </div>
-                                <div style="margin-top:15px;">
-                                    <p><b>Note:</b> PV capture files contain recorded changes to PLC variables over time in CSV format.</p>
-                                </div>
-                            </div>
                         </div>
                         
-                        <div id="settings" class="tab-content" style="display:none;">
-                            <form class="form-inline" action="/intrusion_detection" method="post">
-                                <label for="sensitivity">Detection Sensitivity:</label>
-                                <select id="sensitivity" name="sensitivity" style="width:200px;height:30px;font-size: 16px;font-family: 'Roboto', sans-serif;">
-                                    <option value="low">Low</option>
-                                    <option value="medium" selected>Medium</option>
-                                    <option value="high">High</option>
-                                </select>
-                                <button type="submit">Save</button>
-                            </form>
-                        </div>
-                        
-                        <div id="log" class="tab-content" style="display:none;">
-                            <div class="detection-logs">
-                                [2025-05-13 16:45:02] System started monitoring<br>
-                                [2025-05-13 16:45:10] Baseline established<br>
-                                [2025-05-13 16:46:32] User login: admin<br>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                        <div id="datasource" class="tab-content">"""
         
-        <script>
-        // Tab functions for Intrusion Detection page
-        function openTab(tabName) {
-            // Get all tab content elements
-            var tabContents = document.getElementsByClassName("tab-content");
-            for (var i = 0; i < tabContents.length; i++) {
-                tabContents[i].style.display = "none";
-            }
-            
-            // Get all tab button elements
-            var tabButtons = document.getElementsByClassName("tab-button");
-            for (var i = 0; i < tabButtons.length; i++) {
-                tabButtons[i].className = tabButtons[i].className.replace(" active", "");
-            }
-            
-            // Show the clicked tab content
-            document.getElementById(tabName).style.display = "block";
-            
-            // Add active class to the button that opened the tab
-            var activeButton = document.querySelector("button[onclick=\"openTab('" + tabName + "')\"]");
-            if (activeButton) {
-                activeButton.className += " active";
-            }
-        }
-        
-        // Set initial tab on page load
-        document.addEventListener("DOMContentLoaded", function() {
-            // Make the default tab (Alerts) visible first
-            document.getElementById("alerts").style.display = "block";
-            document.querySelector("button[onclick=\"openTab('alerts')\"]").className += " active";
-        });
-        </script>
-    """
-        return return_str
-
-@app.route('/monitor-update', methods=['GET', 'POST'])
-def monitor_update():
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        #if (openplc_runtime.status() == "Compiling"): return 'OpenPLC is compiling new code. Please wait'
-        return_str = """
-                        <table>
-                            <col width="50"><col width="10"><col width="10"><col width="10"><col width="100">
-                            <tr style='background-color: white'>
-                                <th>Point Name</th><th>Type</th><th>Location</th><th>Write</th><th>Value</th>
-                            </tr>"""
-        
-        #if (openplc_runtime.status() == "Running"):
-        if (True):
-            mb_port_cfg = flask.request.args.get('mb_port')
-            monitor.start_monitor(int(mb_port_cfg))
-            data_index = 0
-            for debug_data in monitor.debug_vars:
-                return_str += '<tr style="height:60px">' # onclick="document.location=\'point-info?table_id=' + str(data_index) + '\'">'
-                return_str += '<td>' + debug_data.name + '</td><td>' + debug_data.type + '</td><td>' + debug_data.location + '</td><td>'
-                if (debug_data.location.find('QX') != -1):
-                    return_str += '<button class="write-button true" onclick="fetch(\'/point-write?value=1&address=' + str(debug_data.location) + '\')">true</button>'
-                    return_str += '<button class="write-button false" onclick="fetch(\'/point-write?value=0&address=' + str(debug_data.location) + '\')">false</button>'
-                return_str += '</td><td valign="middle">'
-                if (debug_data.type == 'BOOL'):
-                    if (debug_data.value == 0):
-                        return_str += '<img src="/static/bool_false.png" alt="bool_false" style="width:40px;height:40px;vertical-align:middle; margin-right:10px">FALSE</td>'
-                    else:
-                        return_str += '<img src="/static/bool_true.png" alt="bool_true" style="width:40px;height:40px;vertical-align:middle; margin-right:10px">TRUE</td>'
-                elif (debug_data.type == 'UINT'):
-                    percentage = (debug_data.value*100)/65535
-                    return_str += '<div class="w3-grey w3-round" style="height:40px"><div class="w3-container w3-blue w3-round" style="height:40px;width:' + str(int(percentage)) + '%"><p style="margin-top:10px">' + str(debug_data.value) + '</p></div></div></td>'
-                elif (debug_data.type == 'INT'):
-                    percentage = ((debug_data.value + 32768)*100)/65535
-                    debug_data.value = ctypes.c_short(debug_data.value).value
-                    return_str += '<div class="w3-grey w3-round" style="height:40px"><div class="w3-container w3-blue w3-round" style="height:40px;width:' + str(int(percentage)) + '%"><p style="margin-top:10px">' + str(debug_data.value) + '</p></div></div></td>'
-                elif (debug_data.type == 'REAL') or (debug_data.type == 'LREAL'):
-                    return_str += "{:10.4f}".format(debug_data.value)
-                else:
-                    return_str += str(debug_data.value)
-                return_str += '</tr>'
-                data_index += 1
-        
-        return_str += """ 
-                        </table>"""
-        
-        return return_str
-
-@app.route('/point-write', methods=['GET', 'POST'])
-def point_write():
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        point_value = flask.request.args.get('value')
-        point_address = flask.request.args.get('address')
-        monitor.write_value(point_address, int(point_value))
-        return ''
-
-@app.route('/point-info', methods=['GET', 'POST'])
-def point_info():
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        #if (openplc_runtime.status() == "Compiling"): return draw_compiling_page()
-        point_id = flask.request.args.get('table_id')
-        debug_data = monitor.debug_vars[int(point_id)]
-        return_str = pages.w3_style + pages.settings_style + draw_top_div()
-        return_str += """
-            <div class='main'>
-                <div class='w3-sidebar w3-bar-block' style='width:250px; background-color:#1F1F1F'>
-                    <br>
-                    <br>
-                    <a href="dashboard" class="w3-bar-item w3-button"><img src="/static/home-icon-64x64.png" alt="Dashboard" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Dashboard</p></a>
-                    <a href='programs' class='w3-bar-item w3-button'><img src='/static/programs-icon-64x64.png' alt='Programs' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
-                    <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
-                    <a href="monitoring" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/monitoring-icon-64x64.png" alt="Monitoring" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Monitoring</p></a>
-                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>                    
-                    <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
-                    <a href='users' class='w3-bar-item w3-button'><img src='/static/users-icon-64x64.png' alt='Users' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Users</p></a>
-                    <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
-                    <a href='logout' class='w3-bar-item w3-button'><img src='/static/logout-icon-64x64.png' alt='Logout' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Logout</p></a>
-                    <br>
-                    <br>"""
-        return_str += draw_status()
-        return_str += """
-        </div>
-            <div style="margin-left:320px; margin-right:70px">
-                <div style="w3-container">
-                    <br>
-                    <h2>Point Details</h2>
-                    <br>
-                    <div id='monitor_point'>
-                        <input type='hidden' value='""" + point_id + """' id='point_id' name='point_id'/>
-                        <p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Point Name:</b> """ + debug_data.name + """</p>
-                        <p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Type:</b> """ + debug_data.type + """</p>
-                        <p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Location:</b> """ + debug_data.location + "</p>"
-        if (debug_data.type == 'BOOL'):
-            if (debug_data.value == 0):
-                return_str += """<p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Status:</b> <img src="/static/bool_false.png" alt="bool_false" style="width:40px;height:40px;vertical-align:middle; margin-right:10px">FALSE</p>"""
-            else:
-                return_str += """<p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Status:</b> <img src="/static/bool_true.png" alt="bool_true" style="width:40px;height:40px;vertical-align:middle; margin-right:10px">TRUE</p>"""
-        elif (debug_data.type == 'UINT'):
-            percentage = (debug_data.value*100)/65535
-            return_str += """<p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Value: </b> <div class="w3-grey w3-round" style="height:40px"><div class="w3-container w3-blue w3-round" style="height:40px;width:""" + str(int(percentage)) + '%"><p style="margin-top:10px">' + str(debug_data.value) + '</p></div></div></p>'
-        elif (debug_data.type == 'INT'):
-            percentage = ((debug_data.value + 32768)*100)/65535
-            debug_data.value = ctypes.c_short(debug_data.value).value
-            return_str += """<p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Value: </b> <div class="w3-grey w3-round" style="height:40px"><div class="w3-container w3-blue w3-round" style="height:40px;width:""" + str(int(percentage)) + '%"><p style="margin-top:10px">' + str(debug_data.value) + '</p></div></div></p>'
-        elif (debug_data.type == 'REAL') or (debug_data.type == 'LREAL'):
-            return_str += """<p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Value: </b>""" + "{:10.4f}".format(debug_data.value) + "</p>"
-        else:
-            return_str += """<p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Value: </b>""" + str(debug_data.value) + "</p>"
-        
-        return_str += """<br>
-                        <br>
-                    </div>
-                    <form action="/monitoring" method="post">
-                        <label class="container">
-                            <b>Force Point Value: </b>
-                            <input id="force_checkbox" type="checkbox">
-                            <span class="checkmark"></span>
-                        </label>"""
-        if (debug_data.type == 'BOOL'):
-            return_str += """
-                        <select id='forced_value' name='forced_value' style="width:200px;height:30px;font-size: 16px;font-family: 'Roboto', sans-serif;">
-                            <option selected='selected' value='TRUE'>TRUE</option>
-                            <option value='FALSE'>FALSE</option>
-                        </select>"""
-        else:
-            return_str += """
-                        <input type='text' id='forced_value' name='forced_value' style="width:200px;height:30px;font-size: 16px;font-family: 'Roboto', sans-serif;" value='0'>
-                        """
-        return_str += pages.point_info_tail
-        return return_str
-
-
-@app.route('/point-update', methods=['GET', 'POST'])
-def point_update():
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        #if (openplc_runtime.status() == "Compiling"): return draw_compiling_page()
-        point_id = flask.request.args.get('table_id')
-        debug_data = monitor.debug_vars[int(point_id)]
-        return_str = """
-                        <input type='hidden' value='""" + point_id + """' id='point_id' name='point_id'/>
-                        <p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Point Name:</b> """ + debug_data.name + """</p>
-                        <p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Type:</b> """ + debug_data.type + """</p>
-                        <p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Location:</b> """ + debug_data.location + "</p>"
-        if (debug_data.type == 'BOOL'):
-            if (debug_data.value == 0):
-                return_str += """<p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Status:</b> <img src="/static/bool_false.png" alt="bool_false" style="width:40px;height:40px;vertical-align:middle; margin-right:10px">FALSE</p>"""
-            else:
-                return_str += """<p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Status:</b> <img src="/static/bool_true.png" alt="bool_true" style="width:40px;height:40px;vertical-align:middle; margin-right:10px">TRUE</p>"""
-        elif (debug_data.type == 'UINT'):
-            percentage = (debug_data.value*100)/65535
-            return_str += """<p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Value: </b> <div class="w3-grey w3-round" style="height:40px"><div class="w3-container w3-blue w3-round" style="height:40px;width:""" + str(int(percentage)) + '%"><p style="margin-top:10px">' + str(debug_data.value) + '</p></div></div></p>'
-        elif (debug_data.type == 'INT'):
-            percentage = ((debug_data.value + 32768)*100)/65535
-            debug_data.value = ctypes.c_short(debug_data.value).value
-            return_str += """<p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Value: </b> <div class="w3-grey w3-round" style="height:40px"><div class="w3-container w3-blue w3-round" style="height:40px;width:""" + str(int(percentage)) + '%"><p style="margin-top:10px">' + str(debug_data.value) + '</p></div></div></p>'
-        elif (debug_data.type == 'REAL') or (debug_data.type == 'LREAL'):
-            return_str += """<p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Value: </b>""" + "{:10.4f}".format(debug_data.value) + "</p>"
-        else:
-            return_str += """<p style='font-family:"Roboto", sans-serif; font-size:16px'><b>Value: </b>""" + str(debug_data.value) + "</p>"
-        
-        return_str += """<br>
-                        <br>"""
-        return return_str
-
-
-
-
-@app.route('/hardware', methods=['GET', 'POST'])
-def hardware():
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        monitor.stop_monitor()
-        if (openplc_runtime.status() == "Compiling"): return draw_compiling_page()
-        if (flask.request.method == 'GET'):
-            with open('./scripts/openplc_driver') as f: current_driver = f.read().rstrip()
-            return_str = pages.w3_style + pages.hardware_style + draw_top_div() + pages.hardware_head
-            return_str += draw_status()
-            return_str += """
-            </div>
-            <div style="margin-left:320px; margin-right:70px">
-                <div style="w3-container">
-                    <br>
-                    <h2>Hardware</h2>
-                    <p>OpenPLC controls inputs and outputs through a piece of code called hardware layer (also known as driver). Therefore, to properly handle the inputs and outputs of your board, you must select the appropriate hardware layer for it. The Blank hardware layer is the default option on OpenPLC, which provides no support for native inputs and outputs.</p>
-                    <!-- <p>This section allows you to change the hardware layer used by OpenPLC. It is also possible to augment the current hardware layer through the hardware layer code box. -->
-                    <p><b>OpenPLC Hardware Layer</b><p>
-                    <form   id    = "uploadForm"
-                        enctype   =  "multipart/form-data"
-                        action    =  "hardware"
-                        method    =  "post">
-                        <select id='hardware_layer' name='hardware_layer' style="width:400px;height:30px;font-size: 16px;font-family: 'Roboto', sans-serif;" onchange='refreshSelector()'>"""
-            if (current_driver == "blank"): return_str += "<option selected='selected' value='blank'>Blank</option>"
-            else: return_str += "<option value='blank'>Blank</option>"
-            if (current_driver == "blank_linux"): return_str += "<option selected='selected' value='blank_linux'>Blank Linux</option>"
-            else: return_str += "<option value='blank_linux'>Blank with DNP3 (Linux only)</option>"
-            if (current_driver == "fischertechnik"): return_str += "<option selected='selected' value='fischertechnik'>Fischertechnik</option>"
-            else: return_str += "<option value='fischertechnik'>Fischertechnik</option>"
-            if (current_driver == "neuron"): return_str += "<option selected='selected' value='neuron'>Neuron</option>"
-            else: return_str += "<option value='neuron'>Neuron</option>"
-            if (current_driver == "pixtend"): return_str += "<option selected='selected' value='pixtend'>PiXtend</option>"
-            else: return_str += "<option value='pixtend'>PiXtend</option>"
-            if (current_driver == "pixtend_2s"): return_str += "<option selected='selected' value='pixtend_2s'>PiXtend 2s</option>"
-            else: return_str += "<option value='pixtend_2s'>PiXtend 2s</option>"
-            if (current_driver == "pixtend_2l"): return_str += "<option selected='selected' value='pixtend_2l'>PiXtend 2l</option>"
-            else: return_str += "<option value='pixtend_2l'>PiXtend 2l</option>"  
-            if (current_driver == "rpi"): return_str += "<option selected='selected' value='rpi'>Raspberry Pi</option>"
-            else: return_str += "<option value='rpi'>Raspberry Pi</option>"
-            if (current_driver == "rpi_old"): return_str += "<option selected='selected' value='rpi_old'>Raspberry Pi - Old Model (2011 model B)</option>"
-            else: return_str += "<option value='rpi_old'>Raspberry Pi - Old Model (2011 model B)</option>"
-            if (current_driver == "opi_zero2"): return_str += "<option selected='selected' value='opi_zero2'>Orange Pi Zero2/Zero2 LTS/Zero2 B</option>"
-            else: return_str += "<option value='opi_zero2'>Orange Pi Zero2/Zero2 LTS/Zero2 B</option>"
-            if (current_driver == "simulink"): return_str += "<option selected='selected' value='simulink'>Simulink</option>"
-            else: return_str += "<option value='simulink'>Simulink</option>"
-            if (current_driver == "simulink_linux"): return_str += "<option selected='selected' value='simulink_linux'>Simulink with DNP3 (Linux only)</option>"
-            else: return_str += "<option value='simulink_linux'>Simulink with DNP3 (Linux only)</option>"
-            if (current_driver == "unipi"): return_str += "<option selected='selected' value='unipi'>UniPi v1.1</option>"
-            else: return_str += "<option value='unipi'>UniPi v1.1</option>"
-            if (current_driver == "psm_linux"): return_str += "<option selected='selected' value='psm_linux'>Python on Linux (PSM)</option>"
-            else: return_str += "<option value='psm_linux'>Python on Linux (PSM)</option>"
-            if (current_driver == "psm_win"): return_str += "<option selected='selected' value='psm_win'>Python on Windows (PSM)</option>"
-            else: return_str += "<option value='psm_win'>Python on Windows (PSM)</option>"
-            if (current_driver == "sequent"): return_str += "<option selected='selected' value='sequent'>Sequent HAT</option>"
-            else: return_str += "<option value='sequent'>Sequent HAT's</option>"
-            if (current_driver == "sl_rp4"): return_str += "<option selected='selected' value='sl_rp4'>SL-RP4</option>"
-            else: return_str += "<option value='sl_rp4'>SL-RP4</option>"
-            if (current_driver == "piplc"): return_str += "<option selected='selected' value='piplc'>Binary-6 PiPLC</option>"
-            else: return_str += "<option value='piplc'>Binary-6 PiPLC</option>"
-            return_str += """
-                        </select>
-                        <br>
-                        <br>
-                        <div id="psm_code" style="visibility:hidden">
-                            <p><b>OpenPLC Python SubModule (PSM)</b><p>
-                            <p>PSM is a powerful bridge that connects OpenPLC core to Python. You can use PSM to write your own OpenPLC driver in pure Python. See below for a sample driver that switches %IX0.0 every second</p>
-                            <textarea wrap="off" spellcheck="false" name="custom_layer_code" id="custom_layer_code">"""
-            with open('./core/psm/main.py') as f: return_str += f.read()
-            return_str += pages.hardware_tail
-            
-        else:
-            hardware_layer = flask.request.form['hardware_layer']
-            custom_layer_code = flask.request.form['custom_layer_code']
-            with open('./active_program') as f: current_program = f.read()
-            with open('./core/psm/main.py', 'w+') as f: f.write(custom_layer_code)
-            
-            subprocess.call(['./scripts/change_hardware_layer.sh', hardware_layer])
-            return "<head><meta http-equiv=\"refresh\" content=\"0; URL='compile-program?file=" + current_program + "'\" /></head>"
-        
-        return return_str
-        
-        return return_str
-
-
-@app.route('/restore_custom_hardware')
-def restore_custom_hardware():
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        if (openplc_runtime.status() == "Compiling"): return draw_compiling_page()
-        
-        #Restore the original custom layer code
-        with open('./core/psm/main.original') as f: original_code = f.read()
-        with open('./core/psm/main.py', 'w+') as f: f.write(original_code)
-        return flask.redirect(flask.url_for('hardware'))
-        
-
-@app.route('/users')
-def users():
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        monitor.stop_monitor()
-        if (openplc_runtime.status() == "Compiling"): return draw_compiling_page()
-        return_str = pages.w3_style + pages.style + draw_top_div()
-        return_str += """
-            <div class='main'>
-                <div class='w3-sidebar w3-bar-block' style='width:250px; background-color:#1F1F1F'>
-                    <br>
-                    <br>
-                    <a href="dashboard" class="w3-bar-item w3-button"><img src="/static/home-icon-64x64.png" alt="Dashboard" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Dashboard</p></a>
-                    <a href='programs' class='w3-bar-item w3-button'><img src='/static/programs-icon-64x64.png' alt='Programs' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
-                    <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
-                    <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
-                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
-                    <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
-                    <a href="users" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/users-icon-64x64.png" alt="Users" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Users</p></a>
-                    <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
-                    <a href='logout' class='w3-bar-item w3-button'><img src='/static/logout-icon-64x64.png' alt='Logout' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Logout</p></a>
-                    <br>
-                    <br>"""
-        return_str += draw_status()
-        return_str += """
-            </div>
-            <div style="margin-left:320px; margin-right:70px">
-                <div style="w3-container">
-                    <br>
-                    <h2>Users</h2>
-                    <br>
-                    <table>
-                        <tr style='background-color: white'>
-                            <th>Full Name</th><th>Username</th><th>Email</th>
-                        </tr>"""
-        
-        database = "openplc.db"
-        conn = create_connection(database)
-        if (conn != None):
-            try:
-                cur = conn.cursor()
-                cur.execute("SELECT user_id, name, username, email FROM Users")
-                rows = cur.fetchall()
-                cur.close()
-                conn.close()
-                
-                for row in rows:
-                    return_str += "<tr onclick=\"document.location='edit-user?table_id=" + str(row[0]) + "'\">"
-                    return_str += "<td>" + str(row[1]) + "</td><td>" + str(row[2]) + "</td><td>" + str(row[3]) + "</td></tr>"
-                
-                return_str += """
-                </table>
-                    <br>
-                    <center><a href="add-user" class="button" style="width: 310px; height: 53px; margin: 0px 20px 0px 20px;"><b>Add new user</b></a></center>
-                </div>
-            </div>
-        </div>
-    </body>
-</html>"""
-            except Error as e:
-                print("error connecting to the database" + str(e))
-                return_str += 'Error connecting to the database. Make sure that your openplc.db file is not corrupt.<br><br>Error: ' + str(e)
-        else:
-            return_str += 'Error connecting to the database. Make sure that your openplc.db file is not corrupt.'
-        
-        return return_str
-
-
-@app.route('/add-user', methods=['GET', 'POST'])
-def add_user():
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        if (openplc_runtime.status() == "Compiling"): return draw_compiling_page()
-        if (flask.request.method == 'GET'):
-            return_str = pages.w3_style + pages.style + draw_top_div()
-            return_str += """
-                <div class='main'>
-                    <div class='w3-sidebar w3-bar-block' style='width:250px; background-color:#1F1F1F'>
-                        <br>
-                        <br>
-                        <a href="dashboard" class="w3-bar-item w3-button"><img src="/static/home-icon-64x64.png" alt="Dashboard" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Dashboard</p></a>
-                        <a href='programs' class='w3-bar-item w3-button'><img src='/static/programs-icon-64x64.png' alt='Programs' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
-                        <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
-                        <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
-                    <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
-                        <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
-                        <a href="users" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/users-icon-64x64.png" alt="Users" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Users</p></a>
-                        <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
-                        <a href='logout' class='w3-bar-item w3-button'><img src='/static/logout-icon-64x64.png' alt='Logout' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Logout</p></a>
-                        <br>
-                        <br>"""
-            return_str += draw_status() + pages.add_user_tail
-            return return_str
-            
-        elif (flask.request.method == 'POST'):
-            name = flask.request.form['full_name']
-            username = flask.request.form['user_name']
-            email = flask.request.form['user_email']
-            password = flask.request.form['user_password']
-
-            (name, username, email) = sanitize_input(name, username, email)
-
-            form_has_picture = True
-            if ('file' not in flask.request.files):
-                form_has_picture = False
-            
+        # Check if the runtime is running
+        if openplc_runtime.status() == "Running":
+            # Check Modbus Server status
+            modbus_enabled = False
+            modbus_port_cfg = 502
             database = "openplc.db"
             conn = create_connection(database)
             if (conn != None):
                 try:
-                    cur = conn.cursor()
-                    if (form_has_picture):
-                        pict_file = flask.request.files['file']
-                        if (pict_file.filename != ''):
-                            # Ensure the file is allowed
-                            if not is_allowed_file(pict_file):
-                                return 'Invalid file format. Only JPEG, PNG, and GIF images are allowed.', 400
-
-                            file_extension = pict_file.filename.split('.')
-                            filename = str(random.randint(1,1000000)) + "." + file_extension[-1]
-                            pict_file.save(os.path.join('static', filename))
-                            cur.execute("INSERT INTO Users (name, username, email, password, pict_file) VALUES (?, ?, ?, ?, ?)", (name, username, email, password, "/static/"+filename))
-                        else:
-                            cur.execute("INSERT INTO Users (name, username, email, password) VALUES (?, ?, ?, ?)", (name, username, email, password))
-                    else:
-                        cur.execute("INSERT INTO Users (name, username, email, password) VALUES (?, ?, ?, ?)", (name, username, email, password))
-                    conn.commit()
-                    cur.close()
-                    conn.close()
-                    return flask.redirect(flask.url_for('users'))
-                    
-                except Error as e:
-                    print("error connecting to the database" + str(e))
-                    return 'Error connecting to the database. Make sure that your openplc.db file is not corrupt.<br><br>Error: ' + str(e)
-            else:
-                return 'Error connecting to the database. Make sure that your openplc.db file is not corrupt.'
-
-
-@app.route('/edit-user', methods=['GET', 'POST'])
-def edit_user():
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        if (openplc_runtime.status() == "Compiling"): return draw_compiling_page()
-        if (flask.request.method == 'GET'):
-            user_id = flask.request.args.get('table_id')
-            return_str = pages.w3_style + pages.style + draw_top_div()
-            return_str += """
-                <div class='main'>
-                    <div class='w3-sidebar w3-bar-block' style='width:250px; background-color:#1F1F1F'>
-                        <br>
-                        <br>
-                        <a href="dashboard" class="w3-bar-item w3-button"><img src="/static/home-icon-64x64.png" alt="Dashboard" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Dashboard</p></a>
-                        <a href='programs' class='w3-bar-item w3-button'><img src='/static/programs-icon-64x64.png' alt='Programs' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Programs</p></a>
-                        <a href='modbus' class='w3-bar-item w3-button'><img src='/static/modbus-icon-512x512.png' alt='Modbus' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Slave Devices</p></a>
-                        <a href='monitoring' class='w3-bar-item w3-button'><img src='/static/monitoring-icon-64x64.png' alt='Monitoring' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Monitoring</p></a>
-                        <a href="intrusion_detection" class="w3-bar-item w3-button"><img src="/static/intrusion-icon-64x64.png" alt="Intrusion Detection" style="width:47px;height:32px;padding:0px 15px 0px 0px;float:left"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Intrusion Detection</p></a>
-                    <a href='hardware' class='w3-bar-item w3-button'><img src='/static/hardware-icon-980x974.png' alt='Hardware' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Hardware</p></a>
-                        <a href="users" class="w3-bar-item w3-button" style="background-color:#0066FC; padding-right:0px;padding-top:0px;padding-bottom:0px"><img src="/static/users-icon-64x64.png" alt="Users" style="width:47px;height:39px;padding:7px 15px 0px 0px;float:left"><img src="/static/arrow.png" style="width:17px;height:49px;padding:0px 0px 0px 0px;margin: 0px 0px 0px 0px; float:right"><p style='font-family:"Roboto", sans-serif; font-size:20px; color:white;margin: 10px 0px 0px 0px'>Users</p></a>
-                        <a href='settings' class='w3-bar-item w3-button'><img src='/static/settings-icon-64x64.png' alt='Settings' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Settings</p></a>
-                        <a href='logout' class='w3-bar-item w3-button'><img src='/static/logout-icon-64x64.png' alt='Logout' style='width:47px;height:32px;padding:0px 15px 0px 0px;float:left'><p style='font-family:\"Roboto\", sans-serif; font-size:20px; color:white;margin: 2px 0px 0px 0px'>Logout</p></a>
-                        <br>
-                        <br>"""
-            return_str += draw_status()
-            return_str += """
-                </div>
-                <div style="margin-left:320px; margin-right:70px">
-                    <div style="w3-container">
-                        <br>
-                        <h2>Edit User</h2>
-                        <br>
-                        <form   id    = "uploadForm"
-                            enctype   =  "multipart/form-data"
-                            action    =  "edit-user"
-                            method    =  "post"
-                            onsubmit  =  "return validateForm()">"""
-                        
-            database = "openplc.db"
-            conn = create_connection(database)
-            if (conn != None):
-                try:
-                    cur = conn.cursor()
-                    cur.execute("SELECT * FROM Users WHERE user_id = ?", (int(user_id),))
-                    row = cur.fetchone()
-                    cur.close()
-                    conn.close()
-                    return_str += "<input type='hidden' value='" + user_id + "' id='user_id' name='user_id'/>" 
-                    return_str += "<label for='full_name'><b>Name</b></label><input type='text' id='full_name' name='full_name' value='" + str(row[1]) + "'>"
-                    return_str += "<label for='user_name'><b>Username</b></label><input type='text' id='user_name' name='user_name' value='" + str(row[2]) + "'>"
-                    return_str += "<label for='user_email'><b>Email</b></label><input type='text' id='user_email' name='user_email' value='" + str(row[3]) + "'>"
-                    return_str += """
-                            <label for='user_password'><b>Password</b></label>
-                            <input type='password' id='user_password' name='user_password' value='mypasswordishere'>
-                            <label for='uploadForm'><b>Picture</b></label>
-                            <br>
-                            <br>
-                            <input type="file" name="file" id="file" class="inputfile" accept="image/*">
-                            <br>
-                            <br>
-                            <center><input type="submit" class="button" style="font-weight:bold; width: 310px; height: 53px; margin: 0px 20px 0px 20px;" value='Save changes'><a href='delete-user?user_id="""
-                    return_str += user_id
-                    return_str += """' class="button" style="width: 310px; height: 53px; margin: 0px 20px 0px 20px;"><b>Delete user</b></a></center>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </body>
-    <script>
-        function validateForm()
-        {
-            var username = document.forms["uploadForm"]["user_name"].value;
-            var password = document.forms["uploadForm"]["user_password"].value;
-            if (username == "" || password == "")
-            {
-                alert("Username and Password cannot be blank");
-                return false;
-            }
-            return true;
-        }
-    </script>
-</html>"""
-                except Error as e:
-                    print("error connecting to the database" + str(e))
-                    return_str += 'Error connecting to the database. Make sure that your openplc.db file is not corrupt.<br><br>Error: ' + str(e)
-            else:
-                return_str += 'Error connecting to the database. Make sure that your openplc.db file is not corrupt.'
-            
-            return return_str
-            
-        elif (flask.request.method == 'POST'):
-            user_id = flask.request.form['user_id']
-            name = flask.request.form['full_name']
-            username = flask.request.form['user_name']
-            email = flask.request.form['user_email']
-            password = flask.request.form['user_password']
-            (user_id, name, username, email) = sanitize_input(user_id, name, username, email)
-            form_has_picture = True
-            if ('file' not in flask.request.files):
-                form_has_picture = False
-            
-            database = "openplc.db"
-            conn = create_connection(database)
-            if (conn != None):
-                try:
-                    cur = conn.cursor()
-                    if (password != "mypasswordishere"):
-                        cur.execute("UPDATE Users SET name = ?, username = ?, email = ?, password = ? WHERE user_id = ?", (name, username, email, password, int(user_id)))
-                    else:
-                        cur.execute("UPDATE Users SET name = ?, username = ?, email = ? WHERE user_id = ?", (name, username, email, int(user_id)))
-                    conn.commit()
-                    if (form_has_picture):
-                        pict_file = flask.request.files['file']
-                        if (pict_file.filename != ''):
-                            # Ensure the file is allowed
-                            if not is_allowed_file(pict_file):
-                                return 'Invalid file format. Only JPEG, PNG, and GIF images are allowed.', 400
-                            
-                            file_extension = pict_file.filename.split('.')
-                            filename = str(random.randint(1,1000000)) + "." + file_extension[-1]
-                            pict_file.save(os.path.join('static', filename))
-                            cur.execute("UPDATE Users SET pict_file = ? WHERE user_id = ?", ("/static/"+filename, int(user_id)))
-                            conn.commit()
-                    cur.close()
-                    conn.close()
-                    return flask.redirect(flask.url_for('users'))
-                    
-                except Error as e:
-                    print("error connecting to the database" + str(e))
-                    return 'Error connecting to the database. Make sure that your openplc.db file is not corrupt.<br><br>Error: ' + str(e)
-            else:
-                return 'Error connecting to the database. Make sure that your openplc.db file is not corrupt.'
-
-
-@app.route('/delete-user', methods=['GET', 'POST'])
-def delete_user():
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        if (openplc_runtime.status() == "Compiling"): return draw_compiling_page()
-        user_id = flask.request.args.get('user_id')
-        database = "openplc.db"
-        conn = create_connection(database)
-        if (conn != None):
-            try:
-                cur = conn.cursor()
-                cur.execute("SELECT username FROM Users WHERE user_id = ?", (int(user_id),))
-                row = cur.fetchone()
-                if (flask_login.current_user.id == row[0]):
-                    cur.close()
-                    conn.close()
-                    return draw_blank_page() + "<h2>Error</h2><p>You cannot delete yourself!<br><br>Use the back-arrow on your browser to return</p></div></div></div></body></html>"
-                else:
-                    cur = conn.cursor()
-                    cur.execute("DELETE FROM Users WHERE user_id = ?", (int(user_id),))
-                    conn.commit()
-                    cur.close()
-                    conn.close()
-                    return flask.redirect(flask.url_for('users'))
-            except Error as e:
-                print("error connecting to the database" + str(e))
-                return 'Error connecting to the database. Make sure that your openplc.db file is not corrupt.<br><br>Error: ' + str(e)
-        else:
-            return 'Error connecting to the database. Make sure that your openplc.db file is not corrupt.'
-
-
-@app.route('/settings', methods=['GET', 'POST'])
-def settings():
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        monitor.stop_monitor()
-        if (openplc_runtime.status() == "Compiling"): return draw_compiling_page()
-        if (flask.request.method == 'GET'):
-            return_str = pages.w3_style + pages.settings_style + draw_top_div() + pages.settings_head
-            return_str += draw_status()
-            return_str += """
-            </div>
-            <div style="margin-left:320px; margin-right:70px">
-                <div style="w3-container">
-                    <br>
-                    <h2>Settings</h2>
-                    <form id        = "uploadForm"
-                        enctype     = "multipart/form-data"
-                        action      = "settings"
-                        method      = "post"
-                        onsubmit    = "return validateForm()">"""
-
-            # Get hostname
-            device_hostname = socket.gethostname()
-
-            if device_hostname != None:
-                return_str += """
-                        <b>Change Hostname</b>
-                        <br>
-                        <p>Hostname allows you to access the OpenPLC Runtime dashboard from another computer on the same network using """ + device_hostname + """.local:8080</p>
-                        <p>Changes to hostname will only take effect after a reboot</p>
-                        <label for='device_hostname'>
-                            <b>Hostname</b>
-                        </label>
-                        <input type='text' id='device_hostname' name='device_hostname' value='""" + device_hostname + """'>
-                        <br>
-                        <br>
-                        <br>
-                        <label class="container">
-                            <b>Enable Modbus Server</b>"""
-            else:
-                return_str += """
-                        <label class="container">
-                            <b>Enable Modbus Server</b>"""
-            
-            database = "openplc.db"
-            conn = create_connection(database)
-            if (conn != None):
-                try:
+                    print("Openning database")
                     cur = conn.cursor()
                     cur.execute("SELECT * FROM Settings")
                     rows = cur.fetchall()
                     cur.close()
                     conn.close()
-                    
+
                     for row in rows:
                         if (row[0] == "Modbus_port"):
-                            modbus_port = str(row[1])
-                        elif (row[0] == "Dnp3_port"):
-                            dnp3_port = str(row[1])
-                        elif (row[0] == "Enip_port"):
-                            enip_port = str(row[1])
-                        elif (row[0] == "Pstorage_polling"):
-                            pstorage_poll = str(row[1])
-                        elif (row[0] == "Start_run_mode"):
-                            start_run = str(row[1])
-                        elif (row[0] == "Slave_polling"):
-                            slave_polling = str(row[1])
-                        elif (row[0] == "Slave_timeout"):
-                            slave_timeout = str(row[1])
-                    
-                    if (modbus_port == 'disabled'):
-                        return_str += """
-                            <input id="modbus_server" type="checkbox">
-                            <span class="checkmark"></span>
-                        </label>
-                        <label for='modbus_server_port'><b>Modbus Server Port</b></label>
-                        <input type='text' id='modbus_server_port' name='modbus_server_port' value='502'>"""
-                    else:
-                        return_str += """
-                            <input id="modbus_server" type="checkbox" checked>
-                            <span class="checkmark"></span>
-                        </label>
-                        <label for='modbus_server_port'><b>Modbus Server Port</b></label>
-                        <input type='text' id='modbus_server_port' name='modbus_server_port' value='""" + modbus_port + "'>"
-                        
-                    return_str += """
-                        <br>
-                        <br>
-                        <br>
-                        <label class="container">
-                            <b>Enable DNP3 Server</b>"""
-                    
-                    if (dnp3_port == 'disabled'):
-                        return_str += """
-                            <input id="dnp3_server" type="checkbox">
-                            <span class="checkmark"></span>
-                        </label>
-                        <label for='dnp3_server_port'><b>DNP3 Server Port</b></label>
-                        <input type='text' id='dnp3_server_port' name='dnp3_server_port' value='20000'>"""
-                    else:
-                        return_str += """
-                            <input id="dnp3_server" type="checkbox" checked>
-                            <span class="checkmark"></span>
-                        </label>
-                        <label for='dnp3_server_port'><b>DNP3 Server Port</b></label>
-                        <input type='text' id='dnp3_server_port' name='dnp3_server_port' value='""" + dnp3_port + "'>"
-                    
-                    return_str += """
-                        <br>
-                        <br>
-                        <br>
-                        <label class="container">
-                            <b>Enable EtherNet/IP Server</b>"""
-                            
-                    if (enip_port == 'disabled'):
-                        return_str += """
-                            <input id="enip_server" type="checkbox">
-                            <span class="checkmark"></span>
-                        </label>
-                        <label for='enip_server_port'><b>EtherNet/IP Server Port</b></label>
-                        <input type='text' id='enip_server_port' name='enip_server_port' value='44818'>"""
-                    else:
-                        return_str += """
-                            <input id="enip_server" type="checkbox" checked>
-                            <span class="checkmark"></span>
-                        </label>
-                        <label for='enip_server_port'><b>EtherNet/IP Server Port</b></label>
-                        <input type='text' id='enip_server_port' name='enip_server_port' value='""" + enip_port + "'>"
-                    
-                    return_str += """
-                        <br>
-                        <br>
-                        <br>
-                        <label class="container">
-                            <b>Enable Persistent Storage Thread</b>"""
-                            
-                    if (pstorage_poll == 'disabled'):
-                        return_str += """
-                            <input id="pstorage_thread" type="checkbox">
-                            <span class="checkmark"></span>
-                        </label>
-                        <label for='pstorage_thread_poll'><b>Persistent Storage polling rate</b></label>
-                        <input type='text' id='pstorage_thread_poll' name='pstorage_thread_poll' value='10'>"""
-                    else:
-                        return_str += """
-                            <input id="pstorage_thread" type="checkbox" checked>
-                            <span class="checkmark"></span>
-                        </label>
-                        <label for='pstorage_thread_poll'><b>Persistent Storage polling rate</b></label>
-                        <input type='text' id='pstorage_thread_poll' name='pstorage_thread_poll' value='""" + pstorage_poll + "'>"
-                    
-                    return_str += """
-                        <br>
-                        <br>
-                        <br>
-                        <label class="container">
-                            <b>Start OpenPLC in RUN mode</b>"""
-                            
-                    if (start_run == 'false'):
-                        return_str += """
-                            <input id="auto_run" type="checkbox">
-                            <span class="checkmark"></span>
-                        </label>
-                        <input type='hidden' value='false' id='auto_run_text' name='auto_run_text'/>"""
-                    else:
-                        return_str += """
-                            <input id="auto_run" type="checkbox" checked>
-                            <span class="checkmark"></span>
-                        </label>
-                        <input type='hidden' value='true' id='auto_run_text' name='auto_run_text'/>"""
-                    
-                    return_str += """
-                        <br>
-                        <h2>Slave Devices</h2>
-                        <label for='slave_polling_period'><b>Polling Period (ms)</b></label>
-                        <input type='text' id='slave_polling_period' name='slave_polling_period' value='""" + slave_polling + "'>"
-                    
-                    return_str += """
-                        <br>
-                        <br>
-                        <br>
-                        <label for='slave_timeout'><b>Timeout (ms)</b></label>
-                        <input type='text' id='slave_timeout' name='slave_timeout' value='""" + slave_timeout + "'>"
-                    
-                    return_str += pages.settings_tail
-                    
+                            if (row[1] != "disabled"):
+                                modbus_enabled = True
+                                modbus_port_cfg = int(row[1])
+                            else:
+                                modbus_enabled = False
+            
                 except Error as e:
-                    return_str += "error connecting to the database" + str(e)
+                    return "error connecting to the database" + str(e)
             else:
-                return_str += "Error opening DB"
-
-            return return_str
-
-        elif (flask.request.method == 'POST'):
-            modbus_port = flask.request.form.get('modbus_server_port')
-            dnp3_port = flask.request.form.get('dnp3_server_port')
-            enip_port = flask.request.form.get('enip_server_port')
-            pstorage_poll = flask.request.form.get('pstorage_thread_poll')
-            start_run = flask.request.form.get('auto_run_text')
-            slave_polling = flask.request.form.get('slave_polling_period')
-            slave_timeout = flask.request.form.get('slave_timeout')
-            device_hostname = flask.request.form.get('device_hostname')
-
-            (modbus_port, dnp3_port, enip_port, pstorage_poll, start_run, slave_polling, slave_timeout, device_hostname) = sanitize_input(modbus_port, dnp3_port, enip_port, pstorage_poll, start_run, slave_polling, slave_timeout, device_hostname)
-
-            # Change hostname if needed
-            current_hostname = socket.gethostname()
-            if current_hostname != None and current_hostname != device_hostname:
-                subprocess.run(['hostnamectl', 'set-hostname', device_hostname])
-
-            database = "openplc.db"
-            conn = create_connection(database)
-            if (conn != None):
-                try:
-                    cur = conn.cursor()
-                    if (modbus_port == None):
-                        cur.execute("UPDATE Settings SET Value = 'disabled' WHERE Key = 'Modbus_port'")
-                        conn.commit()
+                return "Error opening DB"
+            
+            if modbus_enabled == True:
+                monitor.start_monitor(modbus_port_cfg)
+                data_index = 0
+                for debug_data in monitor.debug_vars:
+                    return_str += '<tr style="height:60px">' # onclick="document.location=\'point-info?table_id=' + str(data_index) + '\'">'
+                    return_str += '<td>' + debug_data.name + '</td><td>' + debug_data.type + '</td><td>' + debug_data.location + '</td><td>'
+                    if (debug_data.location.find('QX') != -1):
+                        return_str += '<button class="write-button true" onclick="fetch(\'/point-write?value=1&address=' + str(debug_data.location) + '\')">true</button>'
+                        return_str += '<button class="write-button false" onclick="fetch(\'/point-write?value=0&address=' + str(debug_data.location) + '\')">false</button>'
+                    return_str += '</td><td valign="middle">'
+                    if (debug_data.type == 'BOOL'):
+                        if (debug_data.value == 0):
+                            return_str += '<img src="/static/bool_false.png" alt="bool_false" style="width:40px;height:40px;vertical-align:middle; margin-right:10px">FALSE</td>'
+                        else:
+                            return_str += '<img src="/static/bool_true.png" alt="bool_true" style="width:40px;height:40px;vertical-align:middle; margin-right:10px">TRUE</td>'
+                    elif (debug_data.type == 'UINT'):
+                        percentage = (debug_data.value*100)/65535
+                        return_str += '<div class="w3-grey w3-round" style="height:40px"><div class="w3-container w3-blue w3-round" style="height:40px;width:' + str(int(percentage)) + '%"><p style="margin-top:10px">' + str(debug_data.value) + '</p></div></div></td>'
+                    elif (debug_data.type == 'INT'):
+                        percentage = ((debug_data.value + 32768)*100)/65535
+                        debug_data.value = ctypes.c_short(debug_data.value).value
+                        return_str += '<div class="w3-grey w3-round" style="height:40px"><div class="w3-container w3-blue w3-round" style="height:40px;width:' + str(int(percentage)) + '%"><p style="margin-top:10px">' + str(debug_data.value) + '</p></div></div></td>'
+                    elif (debug_data.type == 'REAL') or (debug_data.type == 'LREAL'):
+                        return_str += "{:10.4f}".format(debug_data.value)
                     else:
-                        cur.execute("UPDATE Settings SET Value = ? WHERE Key = 'Modbus_port'", (str(modbus_port),))
-                        conn.commit()
-                        
-                    if (dnp3_port == None):
-                        cur.execute("UPDATE Settings SET Value = 'disabled' WHERE Key = 'Dnp3_port'")
-                        conn.commit()
-                    else:
-                        cur.execute("UPDATE Settings SET Value = ? WHERE Key = 'Dnp3_port'", (str(dnp3_port),))
-                        conn.commit()
-                        
-                    if (enip_port == None):
-                        cur.execute("UPDATE Settings SET Value = 'disabled' WHERE Key = 'Enip_port'")
-                        conn.commit()
-                    else:
-                        cur.execute("UPDATE Settings SET Value = ? WHERE Key = 'Enip_port'", (str(enip_port),))
-                        conn.commit()
-                        
-                    if (pstorage_poll == None):
-                        cur.execute("UPDATE Settings SET Value = 'disabled' WHERE Key = 'Pstorage_polling'")
-                        conn.commit()
-                    else:
-                        cur.execute("UPDATE Settings SET Value = ? WHERE Key = 'Pstorage_polling'", (str(pstorage_poll),))
-                        conn.commit()
-                        
-                    if (start_run == 'true'):
-                        cur.execute("UPDATE Settings SET Value = 'true' WHERE Key = 'Start_run_mode'")
-                        conn.commit()
-                    else:
-                        cur.execute("UPDATE Settings SET Value = 'false' WHERE Key = 'Start_run_mode'")
-                        conn.commit()
-                        
-                    cur.execute("UPDATE Settings SET Value = ? WHERE Key = 'Slave_polling'", (str(slave_polling),))
-                    conn.commit()
-                    
-                    cur.execute("UPDATE Settings SET Value = ? WHERE Key = 'Slave_timeout'", (str(slave_timeout),))
-                    conn.commit()
-                    
-                    cur.close()
-                    conn.close()
-                    configure_runtime()
-                    generate_mbconfig()
-                    return flask.redirect(flask.url_for('dashboard'))
-                    
-                except Error as e:
-                    print("error connecting to the database" + str(e))
-                    return 'Error connecting to the database. Make sure that your openplc.db file is not corrupt.<br><br>Error: ' + str(e)
+                        return_str += str(debug_data.value)
+                    return_str += '</tr>'
+                    data_index += 1
+                return_str += """
+                        </table>
+                    </div>
+                    <input type='hidden' id='modbus_port_cfg' name='modbus_port_cfg' value='""" + str(modbus_port_cfg) + "'>"
+                return_str += pages.monitoring_tail
+            
+            #Modbus Server is not enabled
             else:
-                return 'Error connecting to the database. Make sure that your openplc.db file is not corrupt.'
-        
-
-@app.route('/logout')
-def logout():
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        monitor.stop_monitor()
-        flask_login.logout_user()
-        return flask.redirect(flask.url_for('login'))
-
-
-@login_manager.unauthorized_handler
-def unauthorized_handler():
-    return 'Unauthorized'
-    
-#----------------------------------------------------------------------------
-#Creates a connection with the SQLite database.
-#----------------------------------------------------------------------------
-""" Create a connection to the database file """
-def create_connection(db_file):
-   try:
-      conn = sqlite3.connect(db_file)
-      return conn
-   except Error as e:
-      print(e)
-
-   return None
-
-
-#----------------------------------------------------------------------------
-#Returns a generator that yields the sanitized arguments.
-#----------------------------------------------------------------------------
-def sanitize_input(*args):
-   return (escape(a) for a in args)
-
-#----------------------------------------------------------------------------
-# Taken from the html module of the python 3.9 standard library
-# exact lines of code can be found here:
-# https://github.com/python/cpython/blob/3.9/Lib/html/__init__.py#L12
-# Modified to convert to String but preserve NoneType.
-# Preserving NoneType is necessary to ensure program logic is not affected by None being converted to "None",
-# this is relevant in setttings()
-#----------------------------------------------------------------------------
-def escape(s, quote=True):
-    """
-    Replace special characters "&", "<" and ">" to HTML-safe sequences.
-    If the optional flag quote is true (the default), the quotation mark
-    characters, both double quote (") and single quote (') characters are also
-    translated.
-    """
-    if s is None: 
-        return s
-    s = str(s) # force string
-    s = s.replace("&", "&amp;") # Must be done first!
-    s = s.replace("<", "&lt;")
-    s = s.replace(">", "&gt;")
-    if quote:
-        s = s.replace('"', "&quot;")
-        s = s.replace('\'', "&#x27;")
-    return s
-
-
-#----------------------------------------------------------------------------
-#Main dummy function. Only displays a message and exits. The app keeps
-#running on the background by Flask
-#----------------------------------------------------------------------------
-def main():
-   print("Starting the web interface...")
-   
-if __name__ == '__main__':
-    #Load information about current program on the openplc_runtime object
-    file = open("active_program", "r")
-    st_file = file.read()
-    st_file = st_file.replace('\r','').replace('\n','')
-    
-    database = "openplc.db"
-    conn = create_connection(database)
-    if (conn != None):
-        try:
-            cur = conn.cursor()
-            cur.execute("SELECT * FROM Programs WHERE File=?", (st_file,))
-            #cur.execute("SELECT * FROM Programs")
-            row = cur.fetchone()
-            openplc_runtime.project_name = str(row[1])
-            openplc_runtime.project_description = str(row[2])
-            openplc_runtime.project_file = str(row[3])
+                return_str += """
+                        </table>
+                        <br>
+                        <br>
+                        <h2>You must enable Modbus Server on Settings to be able to monitor your program!</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>"""
             
-            cur.execute("SELECT * FROM Settings")
-            rows = cur.fetchall()
-            cur.close()
-            conn.close()
-            
-            for row in rows:
-                if (row[0] == "Start_run_mode"):
-                    start_run = str(row[1])
-                    
-            if (start_run == 'true'):
-                print("Initializing OpenPLC in RUN mode...")
-                openplc_runtime.start_runtime()
-                time.sleep(1)
-                configure_runtime()
-                monitor.parse_st(openplc_runtime.project_file)
-            
-            app.run(debug=False, host='0.0.0.0', threaded=True, port=8080)
-        
-        except Error as e:
-            print("error connecting to the database" + str(e))
-    else:
-        print("error connecting to the database")
+        #Runtime is not running        
+        else:
+            return_str += """
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>"""
 
-@app.route('/download_pcap/<filename>', methods=['GET'])
-def download_pcap(filename):
-    """Download a PCAP file by copying it to a static downloads directory"""
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        # Sanitize the filename to prevent directory traversal
-        import os
-        import re
-        import shutil
-        
-        # Basic security check - only allow alphanumeric characters, underscores, hyphens and periods
-        if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
-            return "Invalid filename", 400
-        
-        # Make sure the file exists in the packet_captures directory
-        source_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'packet_captures')
-        source_file = os.path.join(source_dir, filename)
-        
-        # Target location in the static directory for direct download access
-        target_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'downloads')
-        target_file = os.path.join(target_dir, filename)
-        
-        # Make sure the downloads directory exists
-        if not os.path.exists(target_dir):
-            os.makedirs(target_dir)
-        
-        # Copy the file to the static/downloads directory
-        try:
-            if os.path.exists(source_file) and os.path.isfile(source_file):
-                shutil.copy2(source_file, target_file)
-                # Return a redirect to the static URL
-                download_url = flask.url_for('static', filename=f'downloads/{filename}')
-                return flask.redirect(download_url)
-            else:
-                return "Source file not found", 404
-        except Exception as e:
-            print(f"Error preparing download file: {e}")
-            return "Error preparing download", 500
-
-@app.route('/delete_pcap/<filename>', methods=['GET'])
-def delete_pcap(filename):
-    """Delete a PCAP file"""
-    if (flask_login.current_user.is_authenticated == False):
-        return flask.redirect(flask.url_for('login'))
-    else:
-        # Sanitize the filename to prevent directory traversal
-        import os
-        import re
-        
-        # Basic security check - only allow alphanumeric characters, underscores, hyphens and periods
-        if not re.match(r'^[a-zA-Z0-9_.-]+$', filename):
-            return "Invalid filename", 400
-        
-        # Get paths for the file in both the capture and static directories
-        source_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'packet_captures')
-        source_file = os.path.join(source_dir, filename)
-        
-        static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'pcap_files')
-        static_file = os.path.join(static_dir, filename)
-        
-        # Delete the files
-        deleted = False
-        try:
-            if os.path.exists(source_file) and os.path.isfile(source_file):
-                os.remove(source_file)
-                deleted = True
-                
-            if os.path.exists(static_file) and os.path.isfile(static_file):
-                os.remove(static_file)
-                deleted = True
-        except Exception as e:
-            return f"Error deleting file: {str(e)}", 500
-        
-        # Redirect back to the intrusion detection page
-        return flask.redirect(flask.url_for('intrusion_detection'))
+        return return_str

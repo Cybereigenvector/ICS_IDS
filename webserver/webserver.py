@@ -2058,12 +2058,11 @@ def intrusion_detection():
                 
         return_str += """
                                     </select>
-                                    <button type="submit" style="margin-left: 10px; padding: 5px 10px; background-color: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer;">Load File</button>
                                     <div id="file-status" style="margin-top: 10px; font-style: italic;">Currently loaded: <span style="font-weight: bold;">""" + selected_st_file + """</span></div>
                                 </div>
-                            </form>
+                            </form>"""
                             
-                            <!-- Controls and legend in single row -->
+        return_str += """<!-- Controls and legend in single row -->
                             <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; background-color: #f5f5f5; padding: 15px; border-radius: 5px;">
                                 <!-- Controls -->
                                 <div style="display: flex; gap: 15px; align-items: center;">
